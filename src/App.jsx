@@ -225,6 +225,28 @@ const App = () => {
   }) || null;
 
   // ── Action Handlers ────────────────────────────────────────────────────────
+  const handleStop = useCallback(() => {
+    // Pause playback
+    if (videoRef.current) {
+      videoRef.current.pause();
+    } else {
+      stopInternalPlayhead();
+    }
+    setIsPlaying(false);
+    
+    // Reset to beginning
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+    }
+    internalTimeRef.current = 0;
+    setCurrentTime(0);
+    
+    // Send SEEK command if connected
+    if (sendCommandRef.current) {
+      sendCommandRef.current({ type: 'PAUSE' });
+      sendCommandRef.current({ type: 'SEEK', time: 0 });
+    }
+  }, [stopInternalPlayhead]);
   const handleTogglePlay = useCallback(() => {
     if (videoRef.current) {
       if (isPlaying) { videoRef.current.pause(); if (sendCommandRef.current) sendCommandRef.current({ type: 'PAUSE' }); }
@@ -569,7 +591,7 @@ const App = () => {
         <div className="layout-divider-v" onMouseDown={(e) => { e.preventDefault(); isResizingHorizontal.current = true; document.body.style.cursor = 'col-resize'; }} />
         <main className="main-content">
           <DawTransport 
-            isPlaying={isPlaying} handleTogglePlay={handleTogglePlay}
+            isPlaying={isPlaying} handleTogglePlay={handleTogglePlay} handleStop={handleStop}
             isRecording={isRecording} handleStartProcess={handleStartProcess}
             currentTime={currentTime} duration={duration} videoURL={videoURL} videoFileName={videoFileName}
             zoomLevel={zoomLevel} setZoomLevel={setZoomLevel}

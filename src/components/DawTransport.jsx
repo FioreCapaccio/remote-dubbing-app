@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, ZoomIn, ZoomOut } from 'lucide-react';
+import { Play, Pause, Square, ZoomIn, ZoomOut } from 'lucide-react';
 
 const toSMPTE = (t) => {
   const safe = isFinite(t) && t >= 0 ? t : 0;
@@ -11,7 +11,7 @@ const toSMPTE = (t) => {
 };
 
 const DawTransport = ({ 
-  isPlaying, handleTogglePlay, 
+  isPlaying, handleTogglePlay, handleStop,
   isRecording, handleStartProcess, 
   currentTime, duration,
   videoURL, videoFileName,
@@ -23,8 +23,15 @@ const DawTransport = ({
   return (
     <header className="pro-transport">
 
-      {/* LEFT: Play + Rec */}
+      {/* LEFT: Stop + Play/Pause + Rec */}
       <div className="transport-left">
+        <button
+          onClick={handleStop}
+          className="btn-transport btn-stop"
+          title="Stop (Esc)"
+        >
+          <Square size={18} fill="currentColor" />
+        </button>
         <button
           onClick={handleTogglePlay}
           className={`btn-transport btn-play${isPlaying ? ' btn-play--active' : ''}`}
