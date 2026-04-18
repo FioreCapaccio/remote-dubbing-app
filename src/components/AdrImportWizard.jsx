@@ -146,7 +146,7 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
         }));
         
         setHeaders(rawHeaders);
-        setRawData(jsonData.slice(1).filter(row => row.some(cell => cell !== undefined && cell !== '')));
+        setRawData(jsonData.filter(row => row.some(cell => cell !== undefined && cell !== '')));
         
         // Auto-detect colonne - SOLO timeIn, timeOut deve essere mappato manualmente
         const autoMap = { ...DEFAULT_COLUMN_MAP };
@@ -202,7 +202,8 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
     const errors = [];
     const parsed = [];
     
-    rawData.forEach((row, idx) => {
+    // Salta la prima riga (header) quando si itera sui dati
+    rawData.slice(1).forEach((row, idx) => {
       const rowNum = idx + 2; // +2 perché riga 1 è header
       const timeInValue = row[columnMap.timeIn];
       
@@ -334,7 +335,7 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
             <div className="preview-info">
               <FileSpreadsheet size={20} />
               <span className="filename">{file?.name}</span>
-              <span className="row-count">{rawData.length} righe trovate</span>
+              <span className="row-count">{Math.max(0, rawData.length - 1)} righe trovate</span>
             </div>
             
             <div className="preview-table-container">
@@ -347,7 +348,7 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {rawData.slice(0, 10).map((row, idx) => (
+                  {rawData.slice(1, 11).map((row, idx) => (
                     <tr key={idx}>
                       {headers.map(h => (
                         <td key={h.index}>{row[h.index] !== undefined ? String(row[h.index]) : ''}</td>
@@ -356,8 +357,8 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
                   ))}
                 </tbody>
               </table>
-              {rawData.length > 10 && (
-                <div className="preview-more">...e altre {rawData.length - 10} righe</div>
+              {rawData.length > 11 && (
+                <div className="preview-more">...e altre {rawData.length - 11} righe</div>
               )}
             </div>
           </div>
