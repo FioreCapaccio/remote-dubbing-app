@@ -50,6 +50,11 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
     // Se è già un numero, assumiamo siano secondi
     if (typeof value === 'number') return value;
     
+    // Se è un oggetto Date (Excel può convertire timecode in Date)
+    if (value instanceof Date) {
+      return value.getHours() * 3600 + value.getMinutes() * 60 + value.getSeconds() + value.getMilliseconds() / 1000;
+    }
+    
     const str = String(value).trim();
     
     // Pattern HH:MM:SS:FF (drop-frame non supportato, trattato come normale)
