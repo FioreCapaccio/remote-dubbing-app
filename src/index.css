@@ -106,21 +106,80 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 }
 
 .pro-transport {
-  padding: 0 2rem;
+  padding: 0 1.5rem;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  height: 60px;
+  height: 64px;
   flex-shrink: 0;
+  gap: 1rem;
 }
 
+/* Transport sections */
+.transport-left  { display: flex; align-items: center; gap: 10px; justify-content: flex-start; }
+.transport-center { display: flex; align-items: center; justify-content: center; }
+.transport-right { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+
+/* Transport buttons — Play & Rec */
+.btn-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.btn-transport:active { transform: scale(0.93); }
+
+.btn-play {
+  background: rgba(255, 255, 255, 0.07);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.btn-play:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.btn-play--active {
+  background: rgba(0, 251, 130, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 251, 130, 0.2), 0 0 14px rgba(0, 251, 130, 0.25);
+}
+
+.btn-rec {
+  background: rgba(255, 62, 62, 0.12);
+  border: 2px solid var(--record);
+  color: var(--record);
+}
+.btn-rec:hover {
+  background: rgba(255, 62, 62, 0.22);
+  box-shadow: 0 0 10px rgba(255, 62, 62, 0.25);
+}
+.btn-rec--active {
+  background: var(--record) !important;
+  color: #fff !important;
+  border-color: var(--record-hover) !important;
+  box-shadow: 0 0 0 3px rgba(255, 62, 62, 0.3), 0 0 18px rgba(255, 62, 62, 0.4) !important;
+  animation: glow-rec 1s infinite alternate;
+}
+
+@keyframes glow-rec {
+  from { box-shadow: 0 0 0 3px rgba(255, 62, 62, 0.3), 0 0 10px rgba(255, 62, 62, 0.3); }
+  to   { box-shadow: 0 0 0 3px rgba(255, 62, 62, 0.5), 0 0 24px rgba(255, 62, 62, 0.6); }
+}
+
+.rec-dot { width: 13px; height: 13px; background: currentColor; border-radius: 50%; }
+
+/* Legacy — keep for any remaining refs */
 .controls { display: flex; gap: 1.5rem; align-items: center; }
 .btn-main-ctrl { background: none; border: none; color: white; cursor: pointer; padding: 4px; }
-.active-rec { color: var(--record) !important; animation: glow-rec 1s infinite alternate; }
-@keyframes glow-rec { from { filter: drop-shadow(0 0 2px var(--record)); } to { filter: drop-shadow(0 0 12px var(--record)); } }
-.rec-dot { width: 12px; height: 12px; background: currentColor; border-radius: 50%; }
+.active-rec { color: var(--record) !important; }
 
 /* SMPTE Timecode block */
 .tc-display-block {
