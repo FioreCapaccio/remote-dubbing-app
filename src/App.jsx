@@ -878,6 +878,8 @@ const App = () => {
             videoURL={videoURL} currentTime={currentTime}
             activeCue={activeCue}
             internalTimeRef={internalTimeRef}
+            remoteStream={remoteStream}
+            selectedDevice={selectedDevice}
           />
         </main>
         <audio ref={remoteAudioRef} style={{ display: 'none' }} />

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Circle } from 'lucide-react';
 import WaveformOverlay from './WaveformOverlay';
+import TrackVolumeMeter from './TrackVolumeMeter';
+import { useTrackMeters } from '../hooks/useTrackMeters';
 
 const STATUS_COLORS = {
   todo: '#8b949e',
@@ -16,12 +18,17 @@ const DawTimeline = ({
   selectedClipId, setSelectedClipId,
   draggingClip, setDraggingClip, dragStartRef,
   videoURL, currentTime, activeCue,
-  internalTimeRef
+  internalTimeRef,
+  remoteStream,
+  selectedDevice
 }) => {
   const [contextMenu, setContextMenu] = useState(null); // { clipId, trackId, x, y }
   const [draggingCue, setDraggingCue] = useState(null); // { cueId, startX, startTimeIn, previewTimeIn }
   const dragCueRef = useRef(null);
   const rulerRef = useRef(null);
+
+  // Hook per monitorare i livelli audio delle tracce
+  const trackLevels = useTrackMeters(tracks, remoteStream, selectedDevice);
 
   // Close context menu when clicking elsewhere
   useEffect(() => {
@@ -267,6 +274,10 @@ const DawTimeline = ({
                 onPointerDown={e => e.stopPropagation()}
                 onClick={e => e.stopPropagation()}
               />
+              {/* Volume Meter per tracce audio */}
+              {track.type === 'audio' && (
+                <TrackVolumeMeter dbLevel={trackLevels[track.id] ?? -60} />
+              )}
             </div>
             <div className="track-lane-cell">
               {track.type === 'video' && videoURL && duration > 0 && (
