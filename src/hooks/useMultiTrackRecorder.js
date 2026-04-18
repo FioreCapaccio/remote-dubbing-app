@@ -21,7 +21,7 @@ export const useMultiTrackRecorder = (settings = { sampleRate: 44100 }, remoteSt
   const animationFrameRef = useRef(null);
   const micStreamRef = useRef(null);
   const peakMeterCallbackRef = useRef(null);
-  const remoteStreamRef = useRef(null);
+  const remoteStreamRef = useRef(remoteStream);
   const activeRecordingsRef = useRef([]); // Track IDs currently recording
 
   useEffect(() => {
@@ -43,6 +43,9 @@ export const useMultiTrackRecorder = (settings = { sampleRate: 44100 }, remoteSt
     remoteStreamRef.current = remoteStream;
     console.log('[MultiTrackRecorder] remoteStream updated:', remoteStream ? 'available' : 'null');
   }, [remoteStream]);
+
+  // Sync ref immediately during render to ensure callbacks have latest value
+  remoteStreamRef.current = remoteStream;
 
   const setOutputDevice = async (deviceId) => {
     setSelectedOutput(deviceId);

@@ -287,6 +287,10 @@ const App = () => {
       sendCommandRef.current({ type: 'SEEK', time: 0 });
     }
   }, [stopInternalPlayhead]);
+
+  // Debounce ref for REC button to prevent double-triggering
+  const isProcessingRecRef = useRef(false);
+
   const handleTogglePlay = useCallback(() => {
     if (videoRef.current) {
       if (isPlaying) { videoRef.current.pause(); if (sendCommandRef.current) sendCommandRef.current({ type: 'PAUSE' }); }
@@ -305,6 +309,14 @@ const App = () => {
   }, [isPlaying, startInternalPlayhead, stopInternalPlayhead]);
 
   const handleStartProcess = useCallback(() => {
+    // Prevent double-triggering with debounce
+    if (isProcessingRecRef.current) {
+      console.log('[App] REC button debounced - ignoring duplicate call');
+      return;
+    }
+    isProcessingRecRef.current = true;
+    setTimeout(() => { isProcessingRecRef.current = false; }, 500);
+
     console.log('[App] === REC BUTTON PRESSED ===');
     console.log('[App] isRecording:', isRecording, '| countdown:', countdown);
     console.log('[App] remoteStream:', remoteStream ? 'AVAILABLE' : 'NULL');
