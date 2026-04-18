@@ -89,12 +89,30 @@ const App = () => {
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const sendCommandRef = useRef(null);
+  const startRecordingRef = useRef(null);
+  const stopRecordingRef = useRef(null);
+  const handleRemoteCommandRef = useRef(null);
 
-  // Custom Hooks
+  // Peer session hook - use ref wrapper to avoid circular dependency
+  const handleRemoteCommandWrapper = useCallback((cmd) => {
+    if (handleRemoteCommandRef.current) {
+      handleRemoteCommandRef.current(cmd);
+    }
+  }, []);
+
+  const { peerId, isConnected, connectionStatus, sendCommand, remoteStream, startTalkback, stopTalkback } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
+
+  // Custom Hooks - pass remoteStream to include remote actor audio in recording
   const { 
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
     selectedOutput, setOutputDevice, peakLevel, startRecording, stopRecording 
-  } = useAudioRecorder(audioSettings);
+  } = useAudioRecorder(audioSettings, remoteStream);
+
+  // Sync recording functions to refs for handleRemoteCommand
+  useEffect(() => {
+    startRecordingRef.current = startRecording;
+    stopRecordingRef.current = stopRecording;
+  }, [startRecording, stopRecording]);
 
   // Sync Logic
   const recordStartTime = useRef(0);
@@ -316,6 +334,7 @@ const App = () => {
     });
   }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead]);
 
+  // Define handleRemoteCommand and sync to ref
   const handleRemoteCommand = useCallback((cmd) => {
     switch (cmd.type) {
       case 'PLAY':
@@ -330,7 +349,8 @@ const App = () => {
         break;
       case 'REC_START':
         recordStartTime.current = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
-        startRecording();
+        // Usa il ref per chiamare startRecording (può essere null se non ancora inizializzato)
+        if (startRecordingRef.current) startRecordingRef.current();
         if (videoRef.current) {
           requestAnimationFrame(() => {
             videoRef.current.play().catch(() => {});
@@ -361,9 +381,12 @@ const App = () => {
         break;
       default: break;
     }
-  }, [startRecording, startCountdownDisplay, cancelCountdown, startInternalPlayhead, stopInternalPlayhead]);
+  }, [startCountdownDisplay, cancelCountdown, startInternalPlayhead, stopInternalPlayhead]);
 
-  const { peerId, isConnected, connectionStatus, sendCommand, remoteStream, startTalkback, stopTalkback } = usePeerSession(roomName, sessionRole, handleRemoteCommand);
+  // Sync handleRemoteCommand to ref so usePeerSession can use it
+  useEffect(() => {
+    handleRemoteCommandRef.current = handleRemoteCommand;
+  }, [handleRemoteCommand]);
 
   useEffect(() => {
     sendCommandRef.current = sendCommand;

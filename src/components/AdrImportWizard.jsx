@@ -146,7 +146,9 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
         }));
         
         setHeaders(rawHeaders);
-        setRawData(jsonData.filter(row => row.some(cell => cell !== undefined && cell !== '')));
+        // Mantieni TUTTE le righe includendo l'header per preservare gli indici
+        // ma traccia separatamente quali righe sono dati vs header
+        setRawData(jsonData);
         
         // Auto-detect colonne - SOLO timeIn, timeOut deve essere mappato manualmente
         const autoMap = { ...DEFAULT_COLUMN_MAP };
@@ -188,6 +190,12 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
   }, []);
 
   const validateAndParse = useCallback(() => {
+    console.log('[ADR Debug] validateAndParse called');
+    console.log('[ADR Debug] columnMap:', columnMap);
+    console.log('[ADR Debug] rawData length:', rawData.length);
+    console.log('[ADR Debug] rawData[0] (header):', rawData[0]);
+    console.log('[ADR Debug] rawData[1] (first data row):', rawData[1]);
+    
     if (columnMap.timeIn === null) {
       alert('Devi selezionare la colonna Timecode Inizio');
       return;
@@ -205,9 +213,18 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
     // Salta la prima riga (header) quando si itera sui dati
     rawData.slice(1).forEach((row, idx) => {
       const rowNum = idx + 2; // +2 perché riga 1 è header
+      
+      // Verifica che la riga esista e abbia abbastanza colonne
+      if (!row || row.length === 0) {
+        console.log(`[ADR Debug] Row ${rowNum} is empty, skipping`);
+        return;
+      }
+      
       const timeInValue = row[columnMap.timeIn];
+      console.log(`[ADR Debug] Row ${rowNum} - timeInValue:`, timeInValue, 'from column', columnMap.timeIn);
       
       if (!validateTimecode(timeInValue)) {
+        console.log(`[ADR Debug] Row ${rowNum} - timeInValue INVALID:`, timeInValue);
         errors.push({
           row: rowNum,
           field: 'timeIn',
@@ -218,13 +235,16 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
       }
       
       const timeIn = parseTimecode(timeInValue);
+      console.log(`[ADR Debug] Row ${rowNum} - parsed timeIn:`, timeIn);
       
       // Parsing timeOut se mappato
       let timeOut = null;
       if (columnMap.timeOut !== null) {
         const timeOutValue = row[columnMap.timeOut];
+        console.log(`[ADR Debug] Row ${rowNum} - timeOutValue:`, timeOutValue);
         if (timeOutValue !== null && timeOutValue !== undefined && timeOutValue !== '') {
           if (!validateTimecode(timeOutValue)) {
+            console.log(`[ADR Debug] Row ${rowNum} - timeOutValue INVALID:`, timeOutValue);
             errors.push({
               row: rowNum,
               field: 'timeOut',
@@ -234,6 +254,7 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
             return;
           }
           timeOut = parseTimecode(timeOutValue);
+          console.log(`[ADR Debug] Row ${rowNum} - parsed timeOut:`, timeOut);
           // Verifica che timeOut sia dopo timeIn
           if (timeOut <= timeIn) {
             errors.push({
@@ -247,15 +268,18 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
         }
       }
       
-      parsed.push({
+      const parsedItem = {
         progressivo: columnMap.progressivo !== null ? String(row[columnMap.progressivo] || '') : String(idx + 1),
         timeIn,
         timeOut,
         battuta: columnMap.battuta !== null ? String(row[columnMap.battuta] || '') : '',
         personaggio: columnMap.personaggio !== null ? String(row[columnMap.personaggio] || '') : ''
-      });
+      };
+      console.log(`[ADR Debug] Row ${rowNum} - parsed item:`, parsedItem);
+      parsed.push(parsedItem);
     });
     
+    console.log('[ADR Debug] Total parsed:', parsed.length, 'errors:', errors.length);
     setParsedData(parsed);
     setValidationErrors(errors);
     setCurrentStep(3);

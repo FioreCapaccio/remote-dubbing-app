@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
-export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
+export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream = null) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioURL, setAudioURL] = useState(null);
   const [takes, setTakes] = useState([]);
@@ -17,6 +17,8 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
   const animationFrameRef = useRef(null);
   const micStreamRef = useRef(null);
   const peakMeterCallbackRef = useRef(null);
+  const mixedStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
 
   useEffect(() => {
     const getDevices = async () => {
@@ -32,6 +34,12 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
     getDevices();
     navigator.mediaDevices.ondevicechange = getDevices;
   }, []);
+
+  // Effect to sync remoteStream ref when prop changes
+  useEffect(() => {
+    remoteStreamRef.current = remoteStream;
+    console.log('[AudioRecorder] remoteStream updated:', remoteStream ? 'available' : 'null');
+  }, [remoteStream]);
 
   // VocalSync 4.0: Output Device Routing
   const setOutputDevice = async (deviceId) => {
@@ -116,7 +124,44 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
         return;
       }
       
-      const mediaRecorder = new MediaRecorder(micStreamRef.current);
+      console.log('[AudioRecorder] Starting recording...');
+      console.log('[AudioRecorder] Local mic stream:', micStreamRef.current ? 'available' : 'null');
+      console.log('[AudioRecorder] Remote stream:', remoteStreamRef.current ? 'available' : 'null');
+      
+      let streamToRecord = micStreamRef.current;
+      
+      // Se c'è uno stream remoto, crea un mix tra microfono locale e remoto
+      if (remoteStreamRef.current && audioContextRef.current) {
+        try {
+          const ctx = audioContextRef.current;
+          const dest = ctx.createMediaStreamDestination();
+          
+          // Crea sorgente dal microfono locale
+          const localSource = ctx.createMediaStreamSource(micStreamRef.current);
+          const localGain = ctx.createGain();
+          localGain.gain.value = 1.0;
+          localSource.connect(localGain);
+          localGain.connect(dest);
+          
+          // Crea sorgente dallo stream remoto
+          const remoteSource = ctx.createMediaStreamSource(remoteStreamRef.current);
+          const remoteGain = ctx.createGain();
+          remoteGain.gain.value = 1.0;
+          remoteSource.connect(remoteGain);
+          remoteGain.connect(dest);
+          
+          streamToRecord = dest.stream;
+          mixedStreamRef.current = dest;
+          
+          console.log('[AudioRecorder] Mixed stream created with local + remote audio');
+        } catch (mixErr) {
+          console.error('[AudioRecorder] Error creating mixed stream:', mixErr);
+          // Fallback: usa solo il microfono locale
+          streamToRecord = micStreamRef.current;
+        }
+      }
+      
+      const mediaRecorder = new MediaRecorder(streamToRecord);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -137,10 +182,14 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
         };
         setTakes((prev) => [newTake, ...prev]);
         // Do not stop the stream or generic audio context here, to keep VU meter running
+        
+        // Cleanup mixed stream if created
+        mixedStreamRef.current = null;
       };
 
       mediaRecorder.start();
       setIsRecording(true);
+      console.log('[AudioRecorder] Recording started successfully');
     } catch (err) {
       console.error('Error recording:', err);
       alert('Error: ' + err.message);
