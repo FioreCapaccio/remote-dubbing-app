@@ -155,10 +155,15 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
           if (/num|prog|id|cue|#|n\.?\s*°/.test(nameLower)) autoMap.progressivo = header.index;
           else if (/time\s*in|inizio|start|entrata/.test(nameLower)) autoMap.timeIn = header.index;
           else if (/time\s*out|fine|end|uscita|out/.test(nameLower)) autoMap.timeOut = header.index;
-          else if (/time|tc/.test(nameLower)) autoMap.timeIn = header.index;
+          else if (/time|tc/.test(nameLower) && autoMap.timeIn === null) autoMap.timeIn = header.index;
           else if (/testo|battuta|line|dialog|text|frase/.test(nameLower)) autoMap.battuta = header.index;
           else if (/char|pers|attore|actor|voice|role/.test(nameLower)) autoMap.personaggio = header.index;
         });
+        
+        // Assicurati che timeOut non sia la stessa colonna di timeIn
+        if (autoMap.timeOut !== null && autoMap.timeOut === autoMap.timeIn) {
+          autoMap.timeOut = null;
+        }
         setColumnMap(autoMap);
         
         setCurrentStep(1);
