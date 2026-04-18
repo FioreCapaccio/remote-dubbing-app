@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Settings2, HardDrive, Headphones, Mic, Plus, Trash2, 
+  Settings2, Mic, Plus, Trash2, 
   Activity, Download, Copy, Check, Wifi, WifiOff, Clock,
   ChevronLeft, ChevronRight, Film, MessageSquare, Send, ChevronDown, ChevronUp
 } from 'lucide-react';
@@ -99,8 +99,6 @@ const DawSidebar = ({
   sidebarWidth, 
   roomName, setRoomName, 
   isConnected, connectionStatus, peerId, 
-  devices, selectedDevice, setSelectedDevice, 
-  outputDevices, selectedOutput, setOutputDevice, 
   sessionRole, setSessionRole, 
   startTalkback, stopTalkback, 
   cues,
@@ -235,19 +233,6 @@ const DawSidebar = ({
           </button>
         </div>
       )}
-
-      <div className="sidebar-group hardware-config">
-        <label><HardDrive size={12} /> AUDIO INPUT</label>
-        <select value={selectedDevice} onChange={(e) => setSelectedDevice(e.target.value)}>
-          {devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Input Device'}</option>)}
-        </select>
-
-        <label style={{ marginTop: '1rem' }}><Headphones size={12} /> MONITORING OUTPUT</label>
-        <select value={selectedOutput} onChange={(e) => setOutputDevice(e.target.value)}>
-          <option value="default">System Default</option>
-          {outputDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Output Device'}</option>)}
-        </select>
-      </div>
 
       {/* Cue List Section */}
       <div className="sidebar-group cue-list-section">

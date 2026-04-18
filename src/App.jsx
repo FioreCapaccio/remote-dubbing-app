@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Settings2 } from 'lucide-react';
+import { Settings2, HardDrive, Headphones } from 'lucide-react';
 
 // Hooks
 import { useAudioRecorder } from './hooks/useAudioRecorder';
@@ -566,9 +566,6 @@ const App = () => {
         <DawSidebar 
           sidebarWidth={sidebarWidth} roomName={roomName} setRoomName={setRoomName}
           isConnected={isConnected} connectionStatus={connectionStatus} peerId={peerId}
-          devices={devices}
-          selectedDevice={selectedDevice} setSelectedDevice={setSelectedDevice}
-          outputDevices={outputDevices} selectedOutput={selectedOutput} setOutputDevice={setOutputDevice}
           sessionRole={sessionRole} setSessionRole={setSessionRole}
           startTalkback={startTalkback} stopTalkback={stopTalkback}
           cues={cues}
@@ -636,6 +633,25 @@ const App = () => {
                       <label>Bit Depth</label>
                       <select value={audioSettings.bitDepth} onChange={e => setAudioSettings({...audioSettings, bitDepth: parseInt(e.target.value)})}>
                          <option value={16}>16-bit</option><option value={24}>24-bit</option><option value={32}>32-bit</option>
+                      </select>
+                   </div>
+                </div>
+                <h2 style={{ marginTop: '1.5rem' }}><HardDrive /> AUDIO INPUT</h2>
+                <div className="settings-grid">
+                   <div className="setting-item">
+                      <label>Input Device</label>
+                      <select value={selectedDevice} onChange={e => setSelectedDevice(e.target.value)}>
+                         {devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Input Device'}</option>)}
+                      </select>
+                   </div>
+                </div>
+                <h2 style={{ marginTop: '1.5rem' }}><Headphones /> MONITORING OUTPUT</h2>
+                <div className="settings-grid">
+                   <div className="setting-item">
+                      <label>Output Device</label>
+                      <select value={selectedOutput} onChange={e => setOutputDevice(e.target.value)}>
+                         <option value="default">System Default</option>
+                         {outputDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Output Device'}</option>)}
                       </select>
                    </div>
                 </div>
