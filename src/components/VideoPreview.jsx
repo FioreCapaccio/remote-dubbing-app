@@ -4,7 +4,8 @@ import { Video } from 'lucide-react';
 const VideoPreview = ({ 
   videoHeight, videoURL, videoRef, 
   setCurrentTime, setDuration, 
-  currentTime, activeMarker,
+  currentTime, activeCue,
+  countdown,
   setVideoURL 
 }) => {
   const fileInputRef = useRef(null);
@@ -49,9 +50,24 @@ const VideoPreview = ({
           <div className="tc-overlay">
             {formatTC(currentTime)}
           </div>
-          {activeMarker && activeMarker.text && (
+          {activeCue && (activeCue.text || activeCue.character) && (
             <div className="adr-subtitle-overlay">
-              {activeMarker.text}
+              {activeCue.character && (
+                <div className="subtitle-character">{activeCue.character}</div>
+              )}
+              {activeCue.text && (
+                <div className="subtitle-text">{activeCue.text}</div>
+              )}
+            </div>
+          )}
+          {/* Countdown overlay */}
+          {countdown !== null && (
+            <div className="countdown-overlay">
+              <div className="countdown-number" key={countdown}>
+                {countdown}
+              </div>
+              <div className="countdown-label">RECORDING IN...</div>
+              <div className="countdown-hint">ESC or REC to cancel</div>
             </div>
           )}
         </div>
@@ -70,6 +86,15 @@ const VideoPreview = ({
               if (f) loadFile(f);
             }} 
           />
+          {countdown !== null && (
+            <div className="countdown-overlay">
+              <div className="countdown-number" key={countdown}>
+                {countdown}
+              </div>
+              <div className="countdown-label">RECORDING IN...</div>
+              <div className="countdown-hint">ESC or REC to cancel</div>
+            </div>
+          )}
         </div>
       )}
     </section>

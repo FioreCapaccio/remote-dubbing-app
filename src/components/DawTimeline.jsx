@@ -1,15 +1,21 @@
 import React from 'react';
-import { Type, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import WaveformOverlay from './WaveformOverlay';
+
+const STATUS_COLORS = {
+  todo: '#8b949e',
+  recording: '#f59e0b',
+  done: '#00fb82',
+};
 
 const DawTimeline = ({ 
   isDraggingOver, handleDragOver, handleDragLeave, handleDrop,
-  isScrubbing, duration, sidebarWidth, zoomLevel, videoRef, setCurrentTime,
-  adrMarkers, setAdrMarkers,
+  isScrubbing: isScrubbingRef, duration, sidebarWidth, zoomLevel, videoRef, setCurrentTime,
+  cues, onAddCue,
   tracks, setTracks, selectedTrackId, setSelectedTrackId,
   selectedClipId, setSelectedClipId,
   draggingClip, setDraggingClip, dragStartRef,
-  videoURL, currentTime
+  videoURL, currentTime, activeCue
 }) => {
   const updateTrack = (id, field, value) => {
     setTracks(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t));
@@ -36,7 +42,7 @@ const DawTimeline = ({
       onMouseDown={(e) => {
         if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.button !== 0) return;
         e.preventDefault();
-        isScrubbing.current = true;
+        isScrubbingRef.current = true;
         
         const timeline = e.currentTarget;
         const rect = timeline.getBoundingClientRect();
@@ -61,8 +67,7 @@ const DawTimeline = ({
               videoRef.current.currentTime = newTime;
               setCurrentTime(newTime);
            }
-           const newMarker = { id: Date.now(), time: newTime, text: '' };
-           setAdrMarkers([...adrMarkers, newMarker].sort((a,b) => a.time - b.time));
+           onAddCue(newTime);
         }}
       >
         {Array.from({ length: Math.ceil((duration || 0) / 5) + 4 }).map((_, i) => {
@@ -78,13 +83,23 @@ const DawTimeline = ({
           );
         })}
         
-        {/* Timeline ADR Pins */}
-        {adrMarkers.map(m => (
-          <div key={m.id} className="timeline-adr-pin" style={{ left: `${m.time * zoomLevel}px` }}>
-            <div className="pin-head"><Type size={8} /></div>
-            {m.text && <div className="pin-text">{m.text}</div>}
-          </div>
-        ))}
+        {/* Timeline Cue Pins */}
+        {cues.map((cue, idx) => {
+          const color = STATUS_COLORS[cue.status] || '#8b949e';
+          const isActive = activeCue?.id === cue.id;
+          return (
+            <div
+              key={cue.id}
+              className={`timeline-cue-pin${isActive ? ' timeline-cue-pin--active' : ''}`}
+              style={{ left: `${cue.timeIn * zoomLevel}px` }}
+            >
+              <div className="cue-pin-flag" style={{ background: color, color: cue.status === 'done' ? '#000' : '#000' }}>
+                #{idx + 1}{cue.character ? ` ${cue.character}` : ''}
+              </div>
+              <div className="cue-pin-line" style={{ background: color }} />
+            </div>
+          );
+        })}
       </div>
 
       <div className="lanes-container">
@@ -102,7 +117,7 @@ const DawTimeline = ({
               {track.type === 'video' && videoURL && duration > 0 && (
                 <div className="clip-item" style={{ left: 0, width: `${duration * zoomLevel}px` }}>
                    <div className="clip-label">ORIGINAL AUDIO</div>
-                   <WaveformOverlay url={videoURL} mini color="#94a3b8" height={90} />
+                   <WaveformOverlay url={videoURL} mini color="#94a3b8" height={90} pxPerSec={zoomLevel} />
                 </div>
               )}
               {track.clips?.map(clip => (
@@ -128,7 +143,7 @@ const DawTimeline = ({
                   >
                     <div className="clip-label">{clip.id.slice(-4)}</div>
                     <audio id={clip.id} src={clip.url} preload="auto" style={{ display: 'none' }} />
-                    <WaveformOverlay url={clip.url} mini color="var(--accent)" height={90} />
+                    <WaveformOverlay url={clip.url} mini color="var(--accent)" height={90} pxPerSec={zoomLevel} />
                   </div>
               ))}
             </div>
@@ -141,7 +156,7 @@ const DawTimeline = ({
       <div className="global-playhead" style={{ left: `${sidebarWidth + currentTime * zoomLevel}px` }}>
         <div 
           className="playhead-handle" 
-          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); isScrubbing.current = true; }} 
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); isScrubbingRef.current = true; }} 
         />
       </div>
     </section>

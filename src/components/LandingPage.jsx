@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Mic, Shield, Zap, Globe, Activity } from 'lucide-react';
+import { Play, Mic, Zap, Headphones, Film, BookOpen } from 'lucide-react';
 
 const LandingPage = ({ onLaunch }) => {
   return (
@@ -8,20 +8,20 @@ const LandingPage = ({ onLaunch }) => {
       <section className="hero">
         <div className="hero-overlay"></div>
         <div className="hero-content">
-          <div className="brand-badge">PRO CYCLING COMMENTARY</div>
+          <div className="brand-badge">PROFESSIONAL REMOTE ADR</div>
           <h1 className="hero-title">
-            VOCALSYNC <span className="text-accent">x</span> BREIZH-VÉLO
+            VOCALSYNC <span className="text-accent">REMOTE ADR STUDIO</span>
           </h1>
           <p className="hero-subtitle">
-            The world's most advanced remote ADR station for professional cycling broadcasting. 
-            Real-time synchronization, high-fidelity audio, and instant Breton terrain matching.
+            Connect your dubbing director directly to the recording booth — anywhere in the world.
+            Real-time talkback, high-fidelity capture, and frame-perfect ADR synchronization.
           </p>
           <div className="hero-actions">
             <button className="btn-primary" onClick={onLaunch}>
               <Play size={20} fill="currentColor" /> ENTER ADR STATION
             </button>
             <button className="btn-secondary">
-              <Activity size={20} /> VIEW SOURCE
+              <BookOpen size={20} /> DOCUMENTATION
             </button>
           </div>
         </div>
@@ -31,23 +31,23 @@ const LandingPage = ({ onLaunch }) => {
       <section className="features">
         <div className="feature-card">
           <Zap className="feature-icon" />
-          <h3>Ultra-Low Latency</h3>
-          <p>Powered by PeerJS for near-instant remote communication between Director and Speaker.</p>
+          <h3>P2P Low-Latency Connection</h3>
+          <p>Powered by PeerJS for near-instant peer-to-peer communication between director and voice actor — no server delay.</p>
         </div>
         <div className="feature-card">
           <Mic className="feature-icon" />
-          <h3>Hi-Fi ADR Scripting</h3>
-          <p>Precision pin-point markers and subtitle overlays for frame-perfect commentary.</p>
+          <h3>Hi-Fi Recording</h3>
+          <p>Studio-grade capture at 48 kHz / 24-bit WAV. Every take lands broadcast-ready on the director's timeline.</p>
         </div>
         <div className="feature-card">
-          <Shield className="feature-icon" />
-          <h3>State-Shield™</h3>
-          <p>Robust connection persistence that survives UI resizing and complex layout changes.</p>
+          <Headphones className="feature-icon" />
+          <h3>Real-Time Talkback</h3>
+          <p>The director speaks directly into the actor's headphones with zero-latency talkback — just like being in the same room.</p>
         </div>
         <div className="feature-card">
-          <Globe className="feature-icon" />
-          <h3>Breizh Optimized</h3>
-          <p>Tailored acoustics for the rugged landscapes and unique broadcasting needs of Brittany.</p>
+          <Film className="feature-icon" />
+          <h3>ADR Cue List & Video Sync</h3>
+          <p>Frame-accurate cue markers on the integrated timeline, with subtitle overlays and timecode locked to the picture.</p>
         </div>
       </section>
 
@@ -58,7 +58,7 @@ const LandingPage = ({ onLaunch }) => {
           <span>TERMS</span>
           <span>DOCUMENTATION</span>
         </div>
-        <div className="footer-copy">© 2026 FIORAVANTE CAPACCIO — BREIZH-VÉLO BROADCASTING SYSTEMS</div>
+        <div className="footer-copy">© 2026 FIORAVANTE CAPACCIO — ALL RIGHTS RESERVED</div>
       </footer>
     </div>
   );

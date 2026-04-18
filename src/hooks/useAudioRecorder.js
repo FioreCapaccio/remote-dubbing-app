@@ -16,6 +16,7 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
   const analyserRef = useRef(null);
   const animationFrameRef = useRef(null);
   const micStreamRef = useRef(null);
+  const peakMeterCallbackRef = useRef(null);
 
   useEffect(() => {
     const getDevices = async () => {
@@ -54,8 +55,13 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
     const dbfs = peak === 0 ? -Infinity : 20 * Math.log10(peak);
     setPeakLevel(dbfs);
     
-    animationFrameRef.current = requestAnimationFrame(updatePeakMeter);
+    animationFrameRef.current = requestAnimationFrame(peakMeterCallbackRef.current);
   }, []);
+
+  // Keep the ref in sync with the latest callback (must be in an effect, not during render)
+  useEffect(() => {
+    peakMeterCallbackRef.current = updatePeakMeter;
+  }, [updatePeakMeter]);
 
   // VocalSync 5.0: Persistent Microphone Monitor
   useEffect(() => {
@@ -101,12 +107,12 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
     };
     initMic();
     return () => { active = false; };
-  }, [selectedDevice, updatePeakMeter, settings.sampleRate]);
+  }, [selectedDevice, updatePeakMeter, settings.sampleRate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startRecording = useCallback(() => {
     try {
       if (!micStreamRef.current) {
-        alert("Microfono non pronto.");
+        alert("Microphone not ready.");
         return;
       }
       

@@ -1,18 +1,24 @@
 import React from 'react';
 import { Play, Pause, ZoomIn, ZoomOut } from 'lucide-react';
 
+const toSMPTE = (t) => {
+  const safe = isFinite(t) && t >= 0 ? t : 0;
+  const h  = Math.floor(safe / 3600);
+  const m  = Math.floor((safe % 3600) / 60);
+  const s  = Math.floor(safe % 60);
+  const f  = Math.floor((safe % 1) * 25);
+  return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}:${f.toString().padStart(2,'0')}`;
+};
+
 const DawTransport = ({ 
   isPlaying, handleTogglePlay, 
   isRecording, handleStartProcess, 
-  currentTime, 
+  currentTime, duration,
   videoURL, videoFileName,
   zoomLevel, setZoomLevel 
 }) => {
-  const h  = Math.floor(currentTime / 3600);
-  const m  = Math.floor((currentTime % 3600) / 60);
-  const s  = Math.floor(currentTime % 60);
-  const f  = Math.floor((currentTime % 1) * 25);
-  const tc = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}:${f.toString().padStart(2,'0')}`;
+  const tc      = toSMPTE(currentTime);
+  const totalTc = toSMPTE(duration || 0);
 
   return (
     <header className="pro-transport">
@@ -28,7 +34,13 @@ const DawTransport = ({
           <div className="rec-dot" />
         </button>
       </div>
-      <div className="tc-display">{tc}</div>
+
+      <div className="tc-display-block">
+        <div className="tc-smpte-label">TC 25fps</div>
+        <div className="tc-display">{tc}</div>
+        <div className="tc-duration">/ {totalTc}</div>
+      </div>
+
       <div className="filename" style={{ flex: 1, paddingLeft: '1.5rem' }}>
         {videoURL ? (videoFileName || 'SCENE_UNTITLED.mp4') : 'NO VIDEO SOURCE'}
       </div>
@@ -52,4 +64,3 @@ const DawTransport = ({
 };
 
 export default DawTransport;
-

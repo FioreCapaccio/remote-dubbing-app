@@ -60,6 +60,41 @@ export async function renderMixdown(tracks, totalDuration, videoURL, settings = 
   return wavBlob;
 }
 
+/**
+ * Export a single clip as a standalone WAV file.
+ * Trims to clip.duration / clip.mediaOffset if set.
+ */
+export async function renderSingleClip(clip, settings = { sampleRate: 48000, bitDepth: 24 }) {
+  const sampleRate = settings.sampleRate;
+
+  const response = await fetch(clip.url);
+  const arrayBuffer = await response.arrayBuffer();
+
+  // Decode in a temporary AudioContext
+  const tmpCtx = new AudioContext({ sampleRate });
+  const decoded = await tmpCtx.decodeAudioData(arrayBuffer);
+  tmpCtx.close();
+
+  const startSample    = Math.round((clip.mediaOffset || 0) * sampleRate);
+  const durationSamples = clip.duration
+    ? Math.round(clip.duration * sampleRate)
+    : decoded.length - startSample;
+  const endSample = Math.min(startSample + durationSamples, decoded.length);
+
+  const numCh  = decoded.numberOfChannels;
+  const sliced = new AudioBuffer({
+    numberOfChannels: numCh,
+    length:           Math.max(1, endSample - startSample),
+    sampleRate,
+  });
+
+  for (let c = 0; c < numCh; c++) {
+    sliced.copyToChannel(decoded.getChannelData(c).slice(startSample, endSample), c);
+  }
+
+  return bufferToWav(sliced, settings.bitDepth);
+}
+
 function bufferToWav(abuffer, bitDepth = 16) {
   const numOfChan = abuffer.numberOfChannels;
   const numSamples = abuffer.length;
