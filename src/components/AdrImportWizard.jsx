@@ -153,8 +153,9 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
         rawHeaders.forEach(header => {
           const nameLower = header.name.toLowerCase();
           if (/num|prog|id|cue|#|n\.?\s*°/.test(nameLower)) autoMap.progressivo = header.index;
+          else if (/time\s*in|inizio|start|entrata/.test(nameLower)) autoMap.timeIn = header.index;
           else if (/time\s*out|fine|end|uscita|out/.test(nameLower)) autoMap.timeOut = header.index;
-          else if (/time|tc|inizio|start|entrata/.test(nameLower)) autoMap.timeIn = header.index;
+          else if (/time|tc/.test(nameLower)) autoMap.timeIn = header.index;
           else if (/testo|battuta|line|dialog|text|frase/.test(nameLower)) autoMap.battuta = header.index;
           else if (/char|pers|attore|actor|voice|role/.test(nameLower)) autoMap.personaggio = header.index;
         });
@@ -189,6 +190,12 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
   const validateAndParse = useCallback(() => {
     if (columnMap.timeIn === null) {
       alert('Devi selezionare la colonna Timecode Inizio');
+      return;
+    }
+    
+    // Verifica che timeIn e timeOut non siano la stessa colonna
+    if (columnMap.timeOut !== null && columnMap.timeIn === columnMap.timeOut) {
+      alert('Timecode Inizio e Timecode Fine non possono essere la stessa colonna');
       return;
     }
     
