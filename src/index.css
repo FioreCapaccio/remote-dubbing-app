@@ -328,7 +328,7 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
   border-right: 1px solid var(--border);
   padding: 1rem;
   display: flex; flex-direction: column; justify-content: space-between;
-  z-index: 10;
+  z-index: 50;
   position: sticky; left: 0;
 }
 .track-header-cell .name { font-weight: 900; font-size: 0.75rem; color: #fff; text-transform: uppercase; }
@@ -2400,6 +2400,13 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
   outline: none;
   margin-top: 4px;
   transition: all 0.15s;
+  position: relative;
+  z-index: 100;
+  pointer-events: auto;
+  -webkit-appearance: menulist;
+  -moz-appearance: menulist;
+  appearance: menulist;
+  min-width: 90px;
 }
 
 .track-source-select:hover {
