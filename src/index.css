@@ -2263,6 +2263,49 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
   font-style: italic;
 }
 
+/* Directory Picker Styles */
+.directory-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-pick-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-pick-dir:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: var(--accent);
+}
+
+.selected-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.4rem 0.6rem;
+  background: rgba(0,251,130,0.1);
+  border: 1px solid rgba(0,251,130,0.3);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .project-filter {
   display: flex;
   align-items: center;

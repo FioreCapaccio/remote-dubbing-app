@@ -46,17 +46,28 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
   }, [resetState, onClose]);
 
   const parseTimecode = (value) => {
-    if (value === null || value === undefined || value === '') return null;
+    console.log('[ADR Debug] parseTimecode called with:', value, 'type:', typeof value);
+    
+    if (value === null || value === undefined || value === '') {
+      console.log('[ADR Debug] parseTimecode: null/undefined/empty, returning null');
+      return null;
+    }
     
     // Se è già un numero, assumiamo siano secondi
-    if (typeof value === 'number') return value;
+    if (typeof value === 'number') {
+      console.log('[ADR Debug] parseTimecode: number input, returning:', value);
+      return value;
+    }
     
     // Se è un oggetto Date (Excel può convertire timecode in Date)
     if (value instanceof Date) {
-      return value.getHours() * 3600 + value.getMinutes() * 60 + value.getSeconds() + value.getMilliseconds() / 1000;
+      const result = value.getHours() * 3600 + value.getMinutes() * 60 + value.getSeconds() + value.getMilliseconds() / 1000;
+      console.log('[ADR Debug] parseTimecode: Date object, returning:', result);
+      return result;
     }
     
     const str = String(value).trim();
+    console.log('[ADR Debug] parseTimecode: string value:', str);
     
     // Pattern HH:MM:SS:FF (drop-frame non supportato, trattato come normale)
     const smptePattern = /^(\d{1,2}):(\d{2}):(\d{2}):(\d{2})$/;
@@ -67,10 +78,15 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
       const seconds = parseInt(smpteMatch[3], 10);
       const frames = parseInt(smpteMatch[4], 10);
       
-      if (minutes >= 60 || seconds >= 60 || frames >= 30) return null;
+      if (minutes >= 60 || seconds >= 60 || frames >= 30) {
+        console.log('[ADR Debug] parseTimecode: SMPTE invalid range');
+        return null;
+      }
       
       // Converti a secondi (assumendo 25fps)
-      return hours * 3600 + minutes * 60 + seconds + frames / 25;
+      const result = hours * 3600 + minutes * 60 + seconds + frames / 25;
+      console.log('[ADR Debug] parseTimecode: SMPTE pattern matched, returning:', result);
+      return result;
     }
     
     // Pattern HH:MM:SS.mmm o HH:MM:SS
@@ -82,9 +98,14 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
       const seconds = parseInt(timeMatch[3], 10);
       const millis = timeMatch[4] ? parseInt(timeMatch[4].padEnd(3, '0'), 10) : 0;
       
-      if (minutes >= 60 || seconds >= 60) return null;
+      if (minutes >= 60 || seconds >= 60) {
+        console.log('[ADR Debug] parseTimecode: HH:MM:SS invalid range');
+        return null;
+      }
       
-      return hours * 3600 + minutes * 60 + seconds + millis / 1000;
+      const result = hours * 3600 + minutes * 60 + seconds + millis / 1000;
+      console.log('[ADR Debug] parseTimecode: HH:MM:SS pattern matched, returning:', result);
+      return result;
     }
     
     // Pattern MM:SS.mmm o MM:SS
@@ -95,15 +116,24 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
       const seconds = parseInt(shortMatch[2], 10);
       const millis = shortMatch[3] ? parseInt(shortMatch[3].padEnd(3, '0'), 10) : 0;
       
-      if (seconds >= 60) return null;
+      if (seconds >= 60) {
+        console.log('[ADR Debug] parseTimecode: MM:SS invalid range');
+        return null;
+      }
       
-      return minutes * 60 + seconds + millis / 1000;
+      const result = minutes * 60 + seconds + millis / 1000;
+      console.log('[ADR Debug] parseTimecode: MM:SS pattern matched, returning:', result);
+      return result;
     }
     
     // Prova a parsare come numero
     const num = parseFloat(str);
-    if (!isNaN(num) && isFinite(num) && num >= 0) return num;
+    if (!isNaN(num) && isFinite(num) && num >= 0) {
+      console.log('[ADR Debug] parseTimecode: parsed as float, returning:', num);
+      return num;
+    }
     
+    console.log('[ADR Debug] parseTimecode: no pattern matched, returning null');
     return null;
   };
 
@@ -113,6 +143,8 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
   };
 
   const handleFileSelect = useCallback((selectedFile) => {
+    console.log('[ADR Debug] handleFileSelect called with:', selectedFile?.name);
+    
     if (!selectedFile) return;
     
     const validExtensions = ['.xlsx', '.xls', '.csv'];
@@ -128,10 +160,14 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
+        console.log('[ADR Debug] File loaded, parsing...');
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        console.log('[ADR Debug] Sheet name:', workbook.SheetNames[0]);
+        
         const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+        console.log('[ADR Debug] Raw jsonData:', jsonData);
         
         if (jsonData.length === 0) {
           alert('Il file è vuoto');
@@ -144,6 +180,16 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
           name: String(h || `Colonna ${i + 1}`),
           sample: jsonData.slice(1, 4).map(row => row[i]).filter(v => v !== undefined)
         }));
+        
+        console.log('[ADR Debug] Headers:', rawHeaders);
+        
+        // Log sample timecode values for debugging
+        jsonData.slice(1, 4).forEach((row, idx) => {
+          console.log(`[ADR Debug] Row ${idx + 2} raw data:`, row);
+          row.forEach((cell, colIdx) => {
+            console.log(`[ADR Debug] Cell [${idx + 2},${colIdx}]:`, cell, 'type:', typeof cell, 'instanceof Date:', cell instanceof Date);
+          });
+        });
         
         setHeaders(rawHeaders);
         // Mantieni TUTTE le righe includendo l'header per preservare gli indici
@@ -161,6 +207,8 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
           else if (/testo|battuta|line|dialog|text|frase/.test(nameLower)) autoMap.battuta = header.index;
           else if (/char|pers|attore|actor|voice|role/.test(nameLower)) autoMap.personaggio = header.index;
         });
+        
+        console.log('[ADR Debug] Auto-detected columnMap:', autoMap);
         setColumnMap(autoMap);
         
         setCurrentStep(1);
@@ -286,6 +334,8 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
   }, [rawData, columnMap]);
 
   const handleImport = useCallback(() => {
+    console.log('[ADR Debug] handleImport called, parsedData:', parsedData);
+    
     const cues = parsedData.map((item, idx) => ({
       id: Date.now() + idx,
       timeIn: item.timeIn,
@@ -294,6 +344,8 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
       text: item.battuta,
       status: 'todo'
     }));
+    
+    console.log('[ADR Debug] Final cues being imported:', cues);
     
     onImportCues(cues);
     handleClose();

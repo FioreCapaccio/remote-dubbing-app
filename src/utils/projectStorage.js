@@ -294,15 +294,32 @@ export async function deleteProject(projectId) {
 }
 
 // Export project as JSON file (for backup/sharing)
+// Uses File System Access API (showDirectoryPicker) when available, falls back to download
 export async function exportProjectToFile(projectName, state, options = {}) {
   const snapshot = await createProjectSnapshot(projectName, state, options);
   const json = JSON.stringify(snapshot, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
   
-  const { filename } = options;
+  const { filename, directoryHandle } = options;
   const downloadName = filename || `${projectName.replace(/[^a-zA-Z0-9_-]/g, '_')}_VocalSync.json`;
   
+  // If we have a directory handle from showDirectoryPicker, use it
+  if (directoryHandle) {
+    try {
+      const fileHandle = await directoryHandle.getFileHandle(downloadName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      console.log('[ProjectStorage] File saved to selected directory:', downloadName);
+      return downloadName;
+    } catch (err) {
+      console.error('[ProjectStorage] Failed to save with File System Access API:', err);
+      // Fall through to fallback
+    }
+  }
+  
+  // Fallback: traditional download
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = downloadName;
@@ -310,6 +327,31 @@ export async function exportProjectToFile(projectName, state, options = {}) {
   URL.revokeObjectURL(url);
   
   return downloadName;
+}
+
+// Show directory picker and return the handle (if supported)
+export async function pickDirectory() {
+  // Check if File System Access API is supported
+  if ('showDirectoryPicker' in window) {
+    try {
+      const dirHandle = await window.showDirectoryPicker();
+      console.log('[ProjectStorage] Directory selected:', dirHandle.name);
+      return dirHandle;
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('[ProjectStorage] User cancelled directory picker');
+        return null;
+      }
+      console.error('[ProjectStorage] Directory picker error:', err);
+      throw err;
+    }
+  }
+  return null;
+}
+
+// Check if File System Access API is supported
+export function isFileSystemAccessSupported() {
+  return 'showDirectoryPicker' in window;
 }
 
 // Import project from JSON file

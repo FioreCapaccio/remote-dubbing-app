@@ -15,7 +15,7 @@ import VideoPreview from './components/VideoPreview';
 
 // Utils
 import { renderMixdown } from './utils/audioExport';
-import { saveProject, loadProject, listProjects, deleteProject, exportProjectToFile, importProjectFromFile } from './utils/projectStorage';
+import { saveProject, loadProject, listProjects, deleteProject, exportProjectToFile, importProjectFromFile, pickDirectory, isFileSystemAccessSupported } from './utils/projectStorage';
 
 // Styles
 import './index.css';
@@ -85,6 +85,8 @@ const App = () => {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFilename, setExportFilename] = useState('');
+  const [exportDirectoryHandle, setExportDirectoryHandle] = useState(null);
+  const [exportDirectoryName, setExportDirectoryName] = useState('');
 
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -530,6 +532,8 @@ const App = () => {
   const handleExportProject = useCallback(async () => {
     const name = projectName || videoFileName?.replace(/\.[^/.]+$/, '') || 'Untitled Project';
     setExportFilename(`${name.replace(/[^a-zA-Z0-9_-]/g, '_')}_VocalSync.json`);
+    setExportDirectoryHandle(null);
+    setExportDirectoryName('');
     setShowExportModal(true);
   }, [projectName, videoFileName]);
 
@@ -545,16 +549,35 @@ const App = () => {
       const options = {
         category: projectCategory,
         description: projectDescription,
-        filename: exportFilename
+        filename: exportFilename,
+        directoryHandle: exportDirectoryHandle
       };
       await exportProjectToFile(name, state, options);
       setShowExportModal(false);
-      alert(`Project exported as "${exportFilename}"`);
+      
+      if (exportDirectoryHandle) {
+        alert(`Project exported as "${exportFilename}" to folder "${exportDirectoryName}"`);
+      } else {
+        alert(`Project exported as "${exportFilename}"`);
+      }
     } catch (err) {
       console.error('Export failed:', err);
       alert('Failed to export project. Please try again.');
     }
-  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription, exportFilename]);
+  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription, exportFilename, exportDirectoryHandle, exportDirectoryName]);
+
+  const handlePickExportDirectory = useCallback(async () => {
+    try {
+      const dirHandle = await pickDirectory();
+      if (dirHandle) {
+        setExportDirectoryHandle(dirHandle);
+        setExportDirectoryName(dirHandle.name);
+      }
+    } catch (err) {
+      console.error('Failed to pick directory:', err);
+      alert('Failed to select directory. Please try again.');
+    }
+  }, []);
 
   const handleImportProjectFromFile = useCallback(async (file) => {
     try {
@@ -1044,8 +1067,38 @@ const App = () => {
                     placeholder="project_name_VocalSync.json"
                     autoFocus
                   />
-                  <span className="field-hint">The file will be saved to your Downloads folder</span>
                 </div>
+                
+                {isFileSystemAccessSupported() && (
+                  <div className="project-form-field">
+                    <label>Save Location</label>
+                    <div className="directory-picker">
+                      <button 
+                        className="btn-secondary btn-pick-dir"
+                        onClick={handlePickExportDirectory}
+                      >
+                        <Folder size={16} /> 
+                        {exportDirectoryHandle ? 'Change Folder' : 'Choose Folder'}
+                      </button>
+                      {exportDirectoryHandle && (
+                        <span className="selected-dir">
+                          <Folder size={14} /> {exportDirectoryName}
+                        </span>
+                      )}
+                    </div>
+                    <span className="field-hint">
+                      {exportDirectoryHandle 
+                        ? 'File will be saved to the selected folder'
+                        : 'Click "Choose Folder" to select where to save, or file will download to Downloads'}
+                    </span>
+                  </div>
+                )}
+                
+                {!isFileSystemAccessSupported() && (
+                  <div className="project-form-field">
+                    <span className="field-hint">The file will be saved to your Downloads folder</span>
+                  </div>
+                )}
               </div>
 
               <div className="modal-actions">
