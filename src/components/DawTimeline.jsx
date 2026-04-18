@@ -18,17 +18,15 @@ const DawTimeline = ({
   selectedClipId, setSelectedClipId,
   draggingClip, setDraggingClip, dragStartRef,
   videoURL, currentTime, activeCue,
-  internalTimeRef,
-  remoteStream,
-  selectedDevice
+  internalTimeRef
 }) => {
   const [contextMenu, setContextMenu] = useState(null); // { clipId, trackId, x, y }
   const [draggingCue, setDraggingCue] = useState(null); // { cueId, startX, startTimeIn, previewTimeIn }
   const dragCueRef = useRef(null);
   const rulerRef = useRef(null);
 
-  // Hook per monitorare i livelli audio delle tracce
-  const trackLevels = useTrackMeters(tracks, remoteStream, selectedDevice);
+  // Hook per monitorare i livelli audio delle tracce (semplificato, niente remoteStream)
+  const trackLevels = useTrackMeters(tracks);
 
   // Close context menu when clicking elsewhere
   useEffect(() => {
@@ -98,7 +96,6 @@ const DawTimeline = ({
       volume: 1, 
       muted: false, 
       solo: false,
-      audioSource: 'local',
       recEnabled: true // Default REC enabled
     }]);
   };
@@ -236,18 +233,6 @@ const DawTimeline = ({
           <div key={track.id} className={`track-row ${selectedTrackId === track.id ? 'active-row' : ''}`} onClick={() => track.type !== 'video' && setSelectedTrackId(track.id)}>
             <div className="track-header-cell" style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}>
               <span className="name">{track.name}</span>
-              {track.type === 'audio' && (
-                <select
-                  className="track-source-select"
-                  value={track.audioSource || 'local'}
-                  onChange={(e) => { e.stopPropagation(); console.log('[DawTimeline] audioSource changed:', e.target.value, 'for track:', track.id); updateTrack(track.id, 'audioSource', e.target.value); }}
-                  onClick={(e) => e.stopPropagation()}
-                  title="Audio Source"
-                >
-                  <option value="local">MIC LOCALE</option>
-                  <option value="remote">MIC REMOTO</option>
-                </select>
-              )}
               <div className="row-controls">
                 {track.type === 'audio' && (
                   <button

@@ -3,10 +3,10 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 /**
  * Hook semplificato per la registrazione audio.
  * Cattura solo il microfono locale del doppiatore.
+ * Nessun multi-track, nessun audioSource, nessun remoteStream.
  */
-export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream = null) => {
+export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
   const [isRecording, setIsRecording] = useState(false);
-  const [audioURL, setAudioURL] = useState(null);
   const [takes, setTakes] = useState([]);
   const [devices, setDevices] = useState([]);
   const [outputDevices, setOutputDevices] = useState([]);
@@ -112,7 +112,7 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
   }, [selectedDevice, updatePeakMeter, settings.sampleRate]);
 
   // Avvia registrazione - semplice, solo microfono locale
-  const startRecording = useCallback(() => {
+  const startRecording = useCallback((trackId = 'track-1') => {
     try {
       if (!micStreamRef.current) {
         alert("Microphone not ready.");
@@ -132,10 +132,10 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         const url = URL.createObjectURL(audioBlob);
-        setAudioURL(url);
         
         const newTake = {
           id: Date.now(),
+          trackId: trackId,
           url,
           blob: audioBlob,
           timestamp: new Date().toLocaleTimeString(),
@@ -162,7 +162,6 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
 
   return {
     isRecording,
-    audioURL,
     takes,
     devices,
     outputDevices,

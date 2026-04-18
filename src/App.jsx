@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Download, Upload, Tag, Folder } from 'lucide-react';
 
 // Hooks
-import { useMultiTrackRecorder } from './hooks/useMultiTrackRecorder';
+import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { usePeerSession } from './hooks/usePeerSession';
 
 // Components
@@ -44,7 +44,7 @@ const App = () => {
   const [sessionRole, setSessionRole] = useState('host');
   const [tracks, setTracks] = useState([
     { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
-    { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local', recEnabled: true }
+    { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], recEnabled: true }
   ]);
   const [selectedTrackId, setSelectedTrackId] = useState('track-1');
   const [selectedClipId, setSelectedClipId] = useState(null);
@@ -97,7 +97,7 @@ const App = () => {
   const stopRecordingRef = useRef(null);
   const handleRemoteCommandRef = useRef(null);
 
-  // Peer session hook - use ref wrapper to avoid circular dependency
+  // Peer session hook
   const handleRemoteCommandWrapper = useCallback((cmd) => {
     if (handleRemoteCommandRef.current) {
       handleRemoteCommandRef.current(cmd);
@@ -106,11 +106,11 @@ const App = () => {
 
   const { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
 
-  // Custom Hooks - pass remoteStream to include remote actor audio in recording
+  // Hook per la registrazione audio - semplificato, solo mic locale
   const { 
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
     selectedOutput, setOutputDevice, peakLevel, startRecording, stopRecording 
-  } = useMultiTrackRecorder(audioSettings, remoteStream);
+  } = useAudioRecorder(audioSettings);
 
   // Sync recording functions to refs for handleRemoteCommand
   useEffect(() => {
@@ -319,9 +319,8 @@ const App = () => {
 
     console.log('[App] === REC BUTTON PRESSED ===');
     console.log('[App] isRecording:', isRecording, '| countdown:', countdown);
-    console.log('[App] remoteStream:', remoteStream ? 'AVAILABLE' : 'NULL');
     console.log('[App] sessionRole:', sessionRole, '| isConnected:', isConnected);
-    console.log('[App] tracks:', tracks.map(t => ({ id: t.id, name: t.name, audioSource: t.audioSource, recEnabled: t.recEnabled })));
+    console.log('[App] selectedTrackId:', selectedTrackId);
     
     if (isRecording) {
       console.log('[App] Stopping recording...');
@@ -339,34 +338,15 @@ const App = () => {
       return;
     }
     
-    // Verifica se ci sono tracce che richiedono remoteStream
-    const tracksNeedingRemote = tracks.filter(t => t.type === 'audio' && t.recEnabled !== false && t.audioSource === 'remote');
-    console.log('[App] Tracks needing remote stream:', tracksNeedingRemote.length);
-    
-    if (tracksNeedingRemote.length > 0 && !remoteStream) {
-      console.warn('[App] WARNING: Some tracks require remote stream but it is not available yet!');
-      console.warn('[App] Tracks:', tracksNeedingRemote.map(t => t.name));
-      // Non blocchiamo, ma avvisiamo - la registrazione userà il fallback locale
-    }
-    
     console.log('[App] Starting countdown and sending COUNTDOWN_START command...');
     if (sendCommandRef.current) sendCommandRef.current({ type: 'COUNTDOWN_START' });
     startCountdownDisplay(() => {
       const startTime = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
       recordStartTime.current = startTime;
-      console.log('[App] Countdown complete, preparing to record from time:', startTime);
+      console.log('[App] Countdown complete, recording on track:', selectedTrackId);
       
-      // Prepara le configurazioni delle tracce per la registrazione multi-traccia
-      // Filtra solo le tracce audio con recEnabled
-      const trackConfigs = tracks
-        .filter(t => t.type === 'audio' && t.recEnabled !== false)
-        .map(t => ({ trackId: t.id, audioSource: t.audioSource || 'local' }));
-      
-      console.log('[App] Track configs for recording:', trackConfigs);
-      console.log('[App] Calling startRecording with trackConfigs:', trackConfigs);
-      
-      // Avvia registrazione multi-traccia con le configurazioni
-      startRecording(trackConfigs);
+      // Avvia registrazione semplice sul mic locale
+      startRecording(selectedTrackId);
       
       if (videoRef.current) {
         requestAnimationFrame(() => {
@@ -375,13 +355,12 @@ const App = () => {
           if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
         });
       } else {
-        // No video: advance playhead via internal timer
         startInternalPlayhead(startTime);
         setIsPlaying(true);
         if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
       }
     });
-  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead, tracks, remoteStream, sessionRole, isConnected]);
+  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead, selectedTrackId]);
 
   // Define handleRemoteCommand and sync to ref
   const handleRemoteCommand = useCallback((cmd) => {
@@ -398,14 +377,9 @@ const App = () => {
         break;
       case 'REC_START':
         recordStartTime.current = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
-        // Il doppiatore (actor) deve registrare il proprio microfono quando il direttore preme REC
-        // Prepara le configurazioni delle tracce per la registrazione
-        const actorTrackConfigs = tracks
-          .filter(t => t.type === 'audio' && t.recEnabled !== false)
-          .map(t => ({ trackId: t.id, audioSource: t.audioSource || 'local' }));
-        
+        // Il doppiatore (actor) registra il proprio microfono quando il direttore preme REC
         if (startRecordingRef.current) {
-          startRecordingRef.current(actorTrackConfigs);
+          startRecordingRef.current(selectedTrackId);
         }
         if (videoRef.current) {
           requestAnimationFrame(() => {
@@ -437,7 +411,7 @@ const App = () => {
         break;
       default: break;
     }
-  }, [startCountdownDisplay, cancelCountdown, startInternalPlayhead, stopInternalPlayhead]);
+  }, [startCountdownDisplay, cancelCountdown, startInternalPlayhead, stopInternalPlayhead, selectedTrackId]);
 
   // Sync handleRemoteCommand to ref so usePeerSession can use it
   useEffect(() => {
@@ -521,7 +495,7 @@ const App = () => {
       setCues([]);
       setTracks([
         { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
-        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local', recEnabled: true }
+        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], recEnabled: true }
       ]);
       setSelectedTrackId('track-1');
       setSelectedClipId(null);
@@ -695,7 +669,7 @@ const App = () => {
       setCues(project.cues || []);
       setTracks(project.tracks || [
         { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
-        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local', recEnabled: true }
+        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], recEnabled: true }
       ]);
       setAudioSettings(project.audioSettings || { sampleRate: 48000, bitDepth: 24, format: 'wav' });
       setVideoFileName(project.videoFileName || null);
@@ -946,8 +920,6 @@ const App = () => {
             videoURL={videoURL} currentTime={currentTime}
             activeCue={activeCue}
             internalTimeRef={internalTimeRef}
-            remoteStream={remoteStream}
-            selectedDevice={selectedDevice}
           />
         </main>
         <audio ref={remoteAudioRef} style={{ display: 'none' }} />
