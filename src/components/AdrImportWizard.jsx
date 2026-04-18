@@ -148,22 +148,17 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
         setHeaders(rawHeaders);
         setRawData(jsonData.slice(1).filter(row => row.some(cell => cell !== undefined && cell !== '')));
         
-        // Auto-detect colonne
+        // Auto-detect colonne - SOLO timeIn, timeOut deve essere mappato manualmente
         const autoMap = { ...DEFAULT_COLUMN_MAP };
         rawHeaders.forEach(header => {
           const nameLower = header.name.toLowerCase();
           if (/num|prog|id|cue|#|n\.?\s*°/.test(nameLower)) autoMap.progressivo = header.index;
-          else if (/time\s*in|inizio|start|entrata/.test(nameLower)) autoMap.timeIn = header.index;
-          else if (/time\s*out|fine|end|uscita|out/.test(nameLower)) autoMap.timeOut = header.index;
-          else if (/time|tc/.test(nameLower) && autoMap.timeIn === null) autoMap.timeIn = header.index;
+          // Solo pattern specifici per timeIn che NON possono confondersi con timeOut
+          else if (/time\s*in|inizio|start|entrata|tc\s*in/.test(nameLower)) autoMap.timeIn = header.index;
+          // timeOut NON viene auto-detectato - l'utente deve mapparlo manualmente
           else if (/testo|battuta|line|dialog|text|frase/.test(nameLower)) autoMap.battuta = header.index;
           else if (/char|pers|attore|actor|voice|role/.test(nameLower)) autoMap.personaggio = header.index;
         });
-        
-        // Assicurati che timeOut non sia la stessa colonna di timeIn
-        if (autoMap.timeOut !== null && autoMap.timeOut === autoMap.timeIn) {
-          autoMap.timeOut = null;
-        }
         setColumnMap(autoMap);
         
         setCurrentStep(1);
