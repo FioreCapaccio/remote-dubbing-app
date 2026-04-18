@@ -44,10 +44,64 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
   const reconnectTimerRef = useRef(null);
   const retryCountRef = useRef(0);
   const isDestroyedRef = useRef(false);
+  const connectionRef = useRef(null);
 
   useEffect(() => {
     onRemoteCommandRef.current = onRemoteCommand;
   }, [onRemoteCommand]);
+
+  // Funzione interna per avviare il talkback - può essere chiamata sia automaticamente che manualmente
+  const startTalkbackInternal = useCallback(async (conn) => {
+    if (!peerRef.current) {
+      console.error('[PeerSession] Cannot start talkback - peer not initialized');
+      return;
+    }
+    // Usa la connessione passata o quella nello state
+    const targetConn = conn || connectionRef.current;
+    if (!targetConn) {
+      console.error('[PeerSession] Cannot start talkback - no connection available');
+      return;
+    }
+    try {
+      console.log('[PeerSession] Starting talkback...');
+      // Audio di alta qualità per il direttore: 48kHz, senza elaborazione
+      const audioConstraints = {
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          sampleRate: 48000,
+          sampleSize: 24,
+          channelCount: 1
+        }
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+      console.log('[PeerSession] Got talkback stream:', stream.getAudioTracks()[0]?.getSettings());
+      localStreamRef.current = stream;
+      
+      // Chiama l'altro peer e invia il proprio stream
+      console.log('[PeerSession] Calling peer:', targetConn.peer);
+      const call = peerRef.current.call(targetConn.peer, stream);
+      callRef.current = call;
+      
+      // Se siamo l'host (director), riceviamo anche lo stream remoto dall'actor
+      // quando l'actor risponde
+      call.on('stream', (remote) => {
+        console.log('[PeerSession] Received remote stream in talkback');
+        setRemoteStream(remote);
+      });
+      
+      call.on('error', (err) => {
+        console.error('[PeerSession] Talkback call error:', err);
+      });
+      
+      call.on('close', () => {
+        console.log('[PeerSession] Talkback call closed');
+      });
+    } catch (err) {
+      console.error("[PeerSession] Talkback error:", err);
+    }
+  }, []);
 
   useEffect(() => {
     if (!roomName) {
@@ -83,6 +137,7 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     function setupConnection(conn) {
       console.log('[PeerSession] Setting up data connection...');
       setConnection(conn);
+      connectionRef.current = conn;
       
       conn.on('open', () => {
         console.log('[PeerSession] Data connection OPEN');
@@ -93,6 +148,18 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
         if (reconnectTimerRef.current) {
           clearTimeout(reconnectTimerRef.current);
           reconnectTimerRef.current = null;
+        }
+        
+        // Avvia automaticamente il talkback quando la connessione dati è aperta
+        // Solo l'host (direttore) inizia la chiamata audio per ricevere lo stream del doppiatore
+        if (role === 'host') {
+          console.log('[PeerSession] Host auto-starting talkback...');
+          // Piccolo delay per assicurarsi che la connessione sia stabile
+          setTimeout(() => {
+            if (!isDestroyedRef.current) {
+              startTalkbackInternal(conn);
+            }
+          }, 500);
         }
       });
       
@@ -279,51 +346,9 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
   }, [connection, isConnected]);
 
   const startTalkback = useCallback(async () => {
-    if (!peerRef.current) {
-      console.error('[PeerSession] Cannot start talkback - peer not initialized');
-      return;
-    }
-    try {
-      console.log('[PeerSession] Starting talkback...');
-      // Audio di alta qualità per il direttore: 48kHz, senza elaborazione
-      const audioConstraints = {
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          sampleRate: 48000,
-          sampleSize: 24,
-          channelCount: 1
-        }
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
-      console.log('[PeerSession] Got talkback stream:', stream.getAudioTracks()[0]?.getSettings());
-      localStreamRef.current = stream;
-      if (connection) {
-        // Chiama l'altro peer e invia il proprio stream
-        console.log('[PeerSession] Calling peer:', connection.peer);
-        const call = peerRef.current.call(connection.peer, stream);
-        callRef.current = call;
-        
-        // Se siamo l'host (director), riceviamo anche lo stream remoto dall'actor
-        // quando l'actor risponde
-        call.on('stream', (remote) => {
-          console.log('[PeerSession] Received remote stream in talkback');
-          setRemoteStream(remote);
-        });
-        
-        call.on('error', (err) => {
-          console.error('[PeerSession] Talkback call error:', err);
-        });
-        
-        call.on('close', () => {
-          console.log('[PeerSession] Talkback call closed');
-        });
-      }
-    } catch (err) {
-      console.error("[PeerSession] Talkback error:", err);
-    }
-  }, [connection]);
+    console.log('[PeerSession] Manual startTalkback called');
+    await startTalkbackInternal();
+  }, [startTalkbackInternal]);
 
   const stopTalkback = useCallback(() => {
     console.log('[PeerSession] Stopping talkback...');
