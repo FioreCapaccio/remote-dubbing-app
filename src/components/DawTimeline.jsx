@@ -38,7 +38,7 @@ const DawTimeline = ({
       if (!rulerRef.current || !dragCueRef.current) return;
       
       const rulerRect = rulerRef.current.getBoundingClientRect();
-      const relativeX = e.clientX - rulerRect.left;
+      const relativeX = e.clientX - rulerRect.left + rulerRef.current.scrollLeft;
       const newTimeIn = Math.max(0, relativeX / zoomLevel);
       
       // Snap to whole seconds (optional, 0.1s tolerance)
