@@ -173,11 +173,22 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     peer.on('call', (call) => {
       console.log('[PeerSession] Incoming call from:', call.peer);
       // Quando riceviamo una chiamata, rispondiamo con il nostro stream audio
-      // per permettere la comunicazione bidirezionale
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      // Il guest (doppiatore) invia il proprio microfono con qualità alta (48kHz Opus)
+      const audioConstraints = {
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          sampleRate: 48000,
+          sampleSize: 24,
+          channelCount: 1
+        }
+      };
+      navigator.mediaDevices.getUserMedia(audioConstraints).then(stream => {
+        console.log('[PeerSession] Got local mic stream:', stream.getAudioTracks()[0]?.getSettings());
         localStreamRef.current = stream;
         call.answer(stream);
-        console.log('[PeerSession] Answered call with local stream');
+        console.log('[PeerSession] Answered call with high-quality local stream');
       }).catch((err) => {
         console.error('[PeerSession] Failed to get mic for call answer:', err);
         // Se non riusciamo ad ottenere il microfono, rispondiamo comunque
@@ -274,7 +285,19 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     }
     try {
       console.log('[PeerSession] Starting talkback...');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Audio di alta qualità per il direttore: 48kHz, senza elaborazione
+      const audioConstraints = {
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          sampleRate: 48000,
+          sampleSize: 24,
+          channelCount: 1
+        }
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+      console.log('[PeerSession] Got talkback stream:', stream.getAudioTracks()[0]?.getSettings());
       localStreamRef.current = stream;
       if (connection) {
         // Chiama l'altro peer e invia il proprio stream

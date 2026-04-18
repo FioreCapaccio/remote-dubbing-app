@@ -106,11 +106,12 @@ const App = () => {
 
   const { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
 
-  // Hook per la registrazione audio - passa isConnected e remoteStream per logica automatica
+  // Hook per la registrazione audio - SOLO il direttore (host) registra dallo stream remoto
+  // Il doppiatore (guest) NON registra - è solo sorgente audio
   const { 
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
     selectedOutput, setOutputDevice, peakLevel, startRecording, stopRecording, recordingSource
-  } = useAudioRecorder(audioSettings, isConnected, remoteStream);
+  } = useAudioRecorder(audioSettings, isConnected, remoteStream, sessionRole);
 
   // Sync recording functions to refs for handleRemoteCommand
   useEffect(() => {
@@ -377,10 +378,8 @@ const App = () => {
         break;
       case 'REC_START':
         recordStartTime.current = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
-        // Il doppiatore (actor) registra il proprio microfono quando il direttore preme REC
-        if (startRecordingRef.current) {
-          startRecordingRef.current(selectedTrackId);
-        }
+        // Il doppiatore (guest) NON registra - è solo sorgente audio
+        // La registrazione avviene solo sul direttore (host) che registra dallo stream remoto
         if (videoRef.current) {
           requestAnimationFrame(() => {
             videoRef.current.play().catch(() => {});
