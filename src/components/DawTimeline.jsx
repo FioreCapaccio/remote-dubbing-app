@@ -18,7 +18,9 @@ const DawTimeline = ({
   selectedClipId, setSelectedClipId,
   draggingClip, setDraggingClip, dragStartRef,
   videoURL, currentTime, activeCue,
-  internalTimeRef
+  internalTimeRef,
+  isRecording,
+  recordingSource
 }) => {
   const [contextMenu, setContextMenu] = useState(null); // { clipId, trackId, x, y }
   const [draggingCue, setDraggingCue] = useState(null); // { cueId, startX, startTimeIn, previewTimeIn }
@@ -233,6 +235,23 @@ const DawTimeline = ({
           <div key={track.id} className={`track-row ${selectedTrackId === track.id ? 'active-row' : ''}`} onClick={() => track.type !== 'video' && setSelectedTrackId(track.id)}>
             <div className="track-header-cell" style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}>
               <span className="name">{track.name}</span>
+              {/* Indicatore sorgente registrazione */}
+              {isRecording && selectedTrackId === track.id && track.type === 'audio' && (
+                <span 
+                  className="recording-source-badge"
+                  style={{ 
+                    fontSize: '9px', 
+                    padding: '2px 6px', 
+                    borderRadius: '3px',
+                    background: recordingSource === 'remote' ? '#00d4ff' : '#ff4444',
+                    color: '#000',
+                    fontWeight: 'bold',
+                    marginLeft: '6px'
+                  }}
+                >
+                  {recordingSource === 'remote' ? 'REMOTE' : 'LOCAL'}
+                </span>
+              )}
               <div className="row-controls">
                 {track.type === 'audio' && (
                   <button

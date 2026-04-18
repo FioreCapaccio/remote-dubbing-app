@@ -1,11 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 /**
- * Hook semplificato per la registrazione audio.
- * Cattura solo il microfono locale del doppiatore.
- * Nessun multi-track, nessun audioSource, nessun remoteStream.
+ * Hook per la registrazione audio con logica automatica:
+ * - Se connesso a un peer e remoteStream disponibile: registra dallo stream remoto
+ * - Altrimenti: registra dal microfono locale
  */
-export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
+export const useAudioRecorder = (settings = { sampleRate: 44100 }, isConnected = false, remoteStream = null) => {
   const [isRecording, setIsRecording] = useState(false);
   const [takes, setTakes] = useState([]);
   const [devices, setDevices] = useState([]);
@@ -13,6 +13,7 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
   const [selectedDevice, setSelectedDevice] = useState('');
   const [selectedOutput, setSelectedOutput] = useState('default');
   const [peakLevel, setPeakLevel] = useState(-60);
+  const [recordingSource, setRecordingSource] = useState('local'); // 'local' | 'remote'
   
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -21,6 +22,8 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
   const animationFrameRef = useRef(null);
   const micStreamRef = useRef(null);
   const peakMeterCallbackRef = useRef(null);
+  const remoteAudioContextRef = useRef(null);
+  const remoteAnalyserRef = useRef(null);
 
   // Enumerazione dispositivi audio
   useEffect(() => {
@@ -45,11 +48,12 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
 
   // Peak meter update
   const updatePeakMeter = useCallback(() => {
-    if (!analyserRef.current) return;
+    const analyser = analyserRef.current || remoteAnalyserRef.current;
+    if (!analyser) return;
     
-    const bufferLength = analyserRef.current.fftSize;
+    const bufferLength = analyser.fftSize;
     const dataArray = new Float32Array(bufferLength);
-    analyserRef.current.getFloatTimeDomainData(dataArray);
+    analyser.getFloatTimeDomainData(dataArray);
     
     let peak = 0;
     for (let i = 0; i < bufferLength; i++) {
@@ -67,8 +71,22 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
     peakMeterCallbackRef.current = updatePeakMeter;
   }, [updatePeakMeter]);
 
-  // Inizializza microfono per monitoraggio VU
+  // Inizializza microfono per monitoraggio VU (solo quando si registra in locale)
   useEffect(() => {
+    // Se connesso e abbiamo remoteStream, non inizializzare il mic locale per il VU
+    if (isConnected && remoteStream) {
+      // Pulisci mic locale se esiste
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach(t => t.stop());
+        micStreamRef.current = null;
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
+      }
+      return;
+    }
+
     let active = true;
     const initMic = async () => {
       try {
@@ -109,19 +127,66 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
     };
     initMic();
     return () => { active = false; };
-  }, [selectedDevice, updatePeakMeter, settings.sampleRate]);
+  }, [selectedDevice, updatePeakMeter, settings.sampleRate, isConnected, remoteStream]);
 
-  // Avvia registrazione - semplice, solo microfono locale
+  // Inizializza analizzatore per remoteStream quando connesso
+  useEffect(() => {
+    if (!isConnected || !remoteStream) {
+      // Pulisci remote audio context
+      if (remoteAudioContextRef.current && remoteAudioContextRef.current.state !== 'closed') {
+        remoteAudioContextRef.current.close().catch(() => {});
+        remoteAudioContextRef.current = null;
+      }
+      remoteAnalyserRef.current = null;
+      return;
+    }
+
+    try {
+      const contextOptions = {};
+      if (settings && settings.sampleRate) {
+        contextOptions.sampleRate = settings.sampleRate;
+      }
+
+      try {
+        remoteAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+      } catch (e) {
+        console.warn("Custom sample rate not supported for remote, fallback to default", e);
+        remoteAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      
+      const source = remoteAudioContextRef.current.createMediaStreamSource(remoteStream);
+      remoteAnalyserRef.current = remoteAudioContextRef.current.createAnalyser();
+      remoteAnalyserRef.current.fftSize = 1024;
+      source.connect(remoteAnalyserRef.current);
+      
+      updatePeakMeter();
+    } catch (err) {
+      console.error("Remote stream analyzer init error:", err);
+    }
+
+    return () => {
+      if (remoteAudioContextRef.current && remoteAudioContextRef.current.state !== 'closed') {
+        remoteAudioContextRef.current.close().catch(() => {});
+      }
+    };
+  }, [isConnected, remoteStream, settings.sampleRate, updatePeakMeter]);
+
+  // Avvia registrazione - logica automatica: remoto se connesso, altrimenti locale
   const startRecording = useCallback((trackId = 'track-1') => {
     try {
-      if (!micStreamRef.current) {
-        alert("Microphone not ready.");
+      // Determina la sorgente: remoto se connesso e remoteStream disponibile
+      const useRemote = isConnected && remoteStream;
+      const streamToRecord = useRemote ? remoteStream : micStreamRef.current;
+      
+      if (!streamToRecord) {
+        alert(useRemote ? "Remote stream not available." : "Microphone not ready.");
         return;
       }
       
-      console.log('[AudioRecorder] Starting recording (local mic only)');
+      console.log(`[AudioRecorder] Starting recording from ${useRemote ? 'REMOTE' : 'LOCAL'} source`);
+      setRecordingSource(useRemote ? 'remote' : 'local');
       
-      const mediaRecorder = new MediaRecorder(micStreamRef.current);
+      const mediaRecorder = new MediaRecorder(streamToRecord);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -139,19 +204,19 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
           url,
           blob: audioBlob,
           timestamp: new Date().toLocaleTimeString(),
-          sourceType: 'local'
+          sourceType: useRemote ? 'remote' : 'local'
         };
         setTakes((prev) => [newTake, ...prev]);
       };
 
       mediaRecorder.start();
       setIsRecording(true);
-      console.log('[AudioRecorder] Recording started successfully');
+      console.log('[AudioRecorder] Recording started successfully from', useRemote ? 'remote stream' : 'local mic');
     } catch (err) {
       console.error('Error recording:', err);
       alert('Error: ' + err.message);
     }
-  }, []);
+  }, [isConnected, remoteStream]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -170,6 +235,7 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }) => {
     selectedOutput,
     setOutputDevice,
     peakLevel,
+    recordingSource,
     startRecording,
     stopRecording
   };

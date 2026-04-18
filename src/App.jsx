@@ -106,11 +106,11 @@ const App = () => {
 
   const { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
 
-  // Hook per la registrazione audio - semplificato, solo mic locale
+  // Hook per la registrazione audio - passa isConnected e remoteStream per logica automatica
   const { 
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
-    selectedOutput, setOutputDevice, peakLevel, startRecording, stopRecording 
-  } = useAudioRecorder(audioSettings);
+    selectedOutput, setOutputDevice, peakLevel, startRecording, stopRecording, recordingSource
+  } = useAudioRecorder(audioSettings, isConnected, remoteStream);
 
   // Sync recording functions to refs for handleRemoteCommand
   useEffect(() => {
@@ -920,6 +920,8 @@ const App = () => {
             videoURL={videoURL} currentTime={currentTime}
             activeCue={activeCue}
             internalTimeRef={internalTimeRef}
+            isRecording={isRecording}
+            recordingSource={recordingSource}
           />
         </main>
         <audio ref={remoteAudioRef} style={{ display: 'none' }} />
