@@ -305,7 +305,9 @@ const App = () => {
   }, [isPlaying, startInternalPlayhead, stopInternalPlayhead]);
 
   const handleStartProcess = useCallback(() => {
+    console.log('[App] handleStartProcess called, isRecording:', isRecording, 'countdown:', countdown);
     if (isRecording) {
+      console.log('[App] Stopping recording...');
       stopRecording();
       if (videoRef.current) videoRef.current.pause();
       else stopInternalPlayhead();
@@ -322,12 +324,16 @@ const App = () => {
     startCountdownDisplay(() => {
       const startTime = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
       recordStartTime.current = startTime;
+      console.log('[App] Countdown complete, preparing to record from time:', startTime);
       
       // Prepara le configurazioni delle tracce per la registrazione multi-traccia
       // Filtra solo le tracce audio con recEnabled
       const trackConfigs = tracks
         .filter(t => t.type === 'audio' && t.recEnabled !== false)
         .map(t => ({ trackId: t.id, audioSource: t.audioSource || 'local' }));
+      
+      console.log('[App] Track configs for recording:', trackConfigs);
+      console.log('[App] Calling startRecording with trackConfigs:', trackConfigs);
       
       // Avvia registrazione multi-traccia con le configurazioni
       startRecording(trackConfigs);

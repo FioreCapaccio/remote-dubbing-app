@@ -120,9 +120,12 @@ export const useMultiTrackRecorder = (settings = { sampleRate: 44100 }, remoteSt
    * @param {Array} trackConfigs - Array di { trackId, audioSource } dove audioSource è 'local'|'remote'
    */
   const startRecording = useCallback((trackConfigs = []) => {
+    console.log('[MultiTrackRecorder] startRecording called with:', trackConfigs);
+    console.log('[MultiTrackRecorder] micStreamRef.current:', micStreamRef.current ? 'exists' : 'NULL');
     try {
       if (!micStreamRef.current) {
-        alert("Microphone not ready.");
+        console.error('[MultiTrackRecorder] FATAL: micStreamRef.current is null - microphone not initialized!');
+        alert("Microphone not ready. Please wait a moment and try again.");
         return;
       }
       

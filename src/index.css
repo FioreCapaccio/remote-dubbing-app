@@ -330,9 +330,10 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
   display: flex; flex-direction: column; justify-content: space-between;
   z-index: 50;
   position: sticky; left: 0;
+  gap: 8px;
 }
-.track-header-cell .name { font-weight: 900; font-size: 0.75rem; color: #fff; text-transform: uppercase; }
-.row-controls { display: flex; gap: 0.4rem; align-items: center; }
+.track-header-cell .name { font-weight: 900; font-size: 0.75rem; color: #fff; text-transform: uppercase; margin-bottom: 4px; }
+.row-controls { display: flex; gap: 0.4rem; align-items: center; margin-top: 4px; }
 .row-controls button {
   width: 26px; height: 26px; font-size: 0.65rem; font-weight: 900; border-radius: 4px;
   background: var(--bg-main); color: var(--text-muted); border: 1px solid var(--border);

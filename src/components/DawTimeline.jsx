@@ -240,7 +240,7 @@ const DawTimeline = ({
                 <select
                   className="track-source-select"
                   value={track.audioSource || 'local'}
-                  onChange={(e) => { e.stopPropagation(); updateTrack(track.id, 'audioSource', e.target.value); }}
+                  onChange={(e) => { e.stopPropagation(); console.log('[DawTimeline] audioSource changed:', e.target.value, 'for track:', track.id); updateTrack(track.id, 'audioSource', e.target.value); }}
                   onClick={(e) => e.stopPropagation()}
                   title="Audio Source"
                 >
