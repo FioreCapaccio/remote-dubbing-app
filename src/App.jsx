@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Download, Upload, Tag, Folder } from 'lucide-react';
 
 // Hooks
-import { useAudioRecorder } from './hooks/useAudioRecorder';
+import { useMultiTrackRecorder } from './hooks/useMultiTrackRecorder';
 import { usePeerSession } from './hooks/usePeerSession';
 
 // Components
@@ -108,7 +108,7 @@ const App = () => {
   const { 
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
     selectedOutput, setOutputDevice, peakLevel, startRecording, stopRecording 
-  } = useAudioRecorder(audioSettings, remoteStream);
+  } = useMultiTrackRecorder(audioSettings, remoteStream);
 
   // Sync recording functions to refs for handleRemoteCommand
   useEffect(() => {
@@ -321,8 +321,14 @@ const App = () => {
       const startTime = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
       recordStartTime.current = startTime;
       
-      // Avvia registrazione semplice - solo microfono locale
-      startRecording();
+      // Prepara le configurazioni delle tracce per la registrazione multi-traccia
+      // Filtra solo le tracce audio con recEnabled
+      const trackConfigs = tracks
+        .filter(t => t.type === 'audio' && t.recEnabled !== false)
+        .map(t => ({ trackId: t.id, audioSource: t.audioSource || 'local' }));
+      
+      // Avvia registrazione multi-traccia con le configurazioni
+      startRecording(trackConfigs);
       
       if (videoRef.current) {
         requestAnimationFrame(() => {
@@ -354,9 +360,14 @@ const App = () => {
         break;
       case 'REC_START':
         recordStartTime.current = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
-        // Avvia registrazione semplice
+        // Il doppiatore (actor) deve registrare il proprio microfono quando il direttore preme REC
+        // Prepara le configurazioni delle tracce per la registrazione
+        const actorTrackConfigs = tracks
+          .filter(t => t.type === 'audio' && t.recEnabled !== false)
+          .map(t => ({ trackId: t.id, audioSource: t.audioSource || 'local' }));
+        
         if (startRecordingRef.current) {
-          startRecordingRef.current();
+          startRecordingRef.current(actorTrackConfigs);
         }
         if (videoRef.current) {
           requestAnimationFrame(() => {
