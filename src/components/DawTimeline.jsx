@@ -81,7 +81,12 @@ const DawTimeline = ({
   }, [draggingCue, zoomLevel, duration, onUpdateCue]);
 
   const updateTrack = (id, field, value) => {
-    setTracks(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t));
+    console.log('[DawTimeline] updateTrack called:', { id, field, value });
+    setTracks(prev => {
+      const newTracks = prev.map(t => t.id === id ? { ...t, [field]: value } : t);
+      console.log('[DawTimeline] Tracks updated:', newTracks.map(t => ({ id: t.id, audioSource: t.audioSource })));
+      return newTracks;
+    });
   };
 
   const addTrack = () => {
