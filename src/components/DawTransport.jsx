@@ -1,5 +1,5 @@
-import React from 'react';
-import { Play, Pause, Square, ZoomIn, ZoomOut } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Pause, Square, ZoomIn, ZoomOut, Save, FolderOpen, FilePlus } from 'lucide-react';
 
 const toSMPTE = (t) => {
   const safe = isFinite(t) && t >= 0 ? t : 0;
@@ -15,7 +15,10 @@ const DawTransport = ({
   isRecording, handleStartProcess, 
   currentTime, duration,
   videoURL, videoFileName,
-  zoomLevel, setZoomLevel 
+  zoomLevel, setZoomLevel,
+  onSaveProject,
+  onLoadProject,
+  onNewProject
 }) => {
   const tc      = toSMPTE(currentTime);
   const totalTc = toSMPTE(duration || 0);
@@ -23,29 +26,58 @@ const DawTransport = ({
   return (
     <header className="pro-transport">
 
-      {/* LEFT: Stop + Play/Pause + Rec */}
+      {/* LEFT: Stop + Play/Pause + Rec + Project Controls */}
       <div className="transport-left">
-        <button
-          onClick={handleStop}
-          className="btn-transport btn-stop"
-          title="Stop (Esc)"
-        >
-          <Square size={18} fill="currentColor" />
-        </button>
-        <button
-          onClick={handleTogglePlay}
-          className={`btn-transport btn-play${isPlaying ? ' btn-play--active' : ''}`}
-          title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-        >
-          {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-        </button>
-        <button
-          onClick={handleStartProcess}
-          className={`btn-transport btn-rec${isRecording ? ' btn-rec--active' : ''}`}
-          title={isRecording ? 'Stop Recording' : 'Start Recording'}
-        >
-          <div className="rec-dot" />
-        </button>
+        <div className="transport-main-controls">
+          <button
+            onClick={handleStop}
+            className="btn-transport btn-stop"
+            title="Stop (Esc)"
+          >
+            <Square size={18} fill="currentColor" />
+          </button>
+          <button
+            onClick={handleTogglePlay}
+            className={`btn-transport btn-play${isPlaying ? ' btn-play--active' : ''}`}
+            title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+          >
+            {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+          </button>
+          <button
+            onClick={handleStartProcess}
+            className={`btn-transport btn-rec${isRecording ? ' btn-rec--active' : ''}`}
+            title={isRecording ? 'Stop Recording' : 'Start Recording'}
+          >
+            <div className="rec-dot" />
+          </button>
+        </div>
+        
+        <div className="transport-project-controls">
+          <button
+            onClick={onNewProject}
+            className="btn-transport btn-project"
+            title="New Project"
+          >
+            <FilePlus size={16} />
+            <span className="btn-label">NEW</span>
+          </button>
+          <button
+            onClick={onSaveProject}
+            className="btn-transport btn-project"
+            title="Save Project"
+          >
+            <Save size={16} />
+            <span className="btn-label">SAVE</span>
+          </button>
+          <button
+            onClick={onLoadProject}
+            className="btn-transport btn-project"
+            title="Load Project"
+          >
+            <FolderOpen size={16} />
+            <span className="btn-label">LOAD</span>
+          </button>
+        </div>
       </div>
 
       {/* CENTER: Timecode */}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Settings2, HardDrive, Headphones } from 'lucide-react';
+import { Settings2, HardDrive, Headphones, FolderOpen, Trash2 } from 'lucide-react';
 
 // Hooks
 import { useAudioRecorder } from './hooks/useAudioRecorder';
@@ -15,6 +15,7 @@ import VideoPreview from './components/VideoPreview';
 
 // Utils
 import { renderMixdown } from './utils/audioExport';
+import { saveProject, loadProject, listProjects, deleteProject } from './utils/projectStorage';
 
 // Styles
 import './index.css';
@@ -73,6 +74,12 @@ const App = () => {
   // Countdown State
   const [countdown, setCountdown] = useState(null);
   const countdownIntervalRef = useRef(null);
+
+  // Project Management State
+  const [savedProjects, setSavedProjects] = useState([]);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [projectModalMode, setProjectModalMode] = useState('save'); // 'save' or 'load'
+  const [projectName, setProjectName] = useState('');
 
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -417,6 +424,112 @@ const App = () => {
     });
   }, [tracks]);
 
+  // ── Project Management Handlers ────────────────────────────────────────────
+  const handleNewProject = useCallback(() => {
+    if (confirm('Create a new project? All unsaved changes will be lost.')) {
+      // Reset all state to default
+      setCues([]);
+      setTracks([
+        { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
+        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [] }
+      ]);
+      setSelectedTrackId('track-1');
+      setSelectedClipId(null);
+      setVideoURL(null);
+      setVideoFileName(null);
+      setCurrentTime(0);
+      internalTimeRef.current = 0;
+      setDuration(0);
+      setChatMessages([]);
+      setProjectName('');
+      
+      // Stop any playback
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+      }
+      stopInternalPlayhead();
+      setIsPlaying(false);
+    }
+  }, [stopInternalPlayhead]);
+
+  const handleSaveProject = useCallback(async () => {
+    const name = projectName || prompt('Enter project name:', videoFileName ? videoFileName.replace(/\.[^/.]+$/, '') : 'Untitled Project');
+    if (!name) return;
+    
+    try {
+      const state = {
+        cues,
+        tracks,
+        audioSettings,
+        videoFileName
+      };
+      await saveProject(name, state);
+      setProjectName(name);
+      alert(`Project "${name}" saved successfully!`);
+    } catch (err) {
+      console.error('Save failed:', err);
+      alert('Failed to save project. Please try again.');
+    }
+  }, [cues, tracks, audioSettings, videoFileName, projectName]);
+
+  const handleLoadProjectClick = useCallback(async () => {
+    try {
+      const projects = await listProjects();
+      setSavedProjects(projects);
+      setProjectModalMode('load');
+      setShowProjectModal(true);
+    } catch (err) {
+      console.error('Failed to list projects:', err);
+      alert('Failed to load projects list.');
+    }
+  }, []);
+
+  const handleLoadProject = useCallback(async (projectId) => {
+    try {
+      const project = await loadProject(projectId);
+      
+      // Stop playback before loading
+      if (videoRef.current) videoRef.current.pause();
+      stopInternalPlayhead();
+      setIsPlaying(false);
+      
+      // Load project data
+      setCues(project.cues || []);
+      setTracks(project.tracks || [
+        { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
+        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [] }
+      ]);
+      setAudioSettings(project.audioSettings || { sampleRate: 48000, bitDepth: 24, format: 'wav' });
+      setVideoFileName(project.videoFileName || null);
+      setProjectName(project.name);
+      
+      // Reset time
+      setCurrentTime(0);
+      internalTimeRef.current = 0;
+      if (videoRef.current) videoRef.current.currentTime = 0;
+      
+      setShowProjectModal(false);
+      alert(`Project "${project.name}" loaded successfully!`);
+    } catch (err) {
+      console.error('Load failed:', err);
+      alert('Failed to load project. Please try again.');
+    }
+  }, [stopInternalPlayhead]);
+
+  const handleDeleteSavedProject = useCallback(async (projectId, e) => {
+    e.stopPropagation();
+    if (!confirm('Delete this project? This cannot be undone.')) return;
+    
+    try {
+      await deleteProject(projectId);
+      setSavedProjects(prev => prev.filter(p => p.id !== projectId));
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('Failed to delete project.');
+    }
+  }, []);
+
   // ── Layout & Drag Listeners ────────────────────────────────────────────────
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -592,6 +705,9 @@ const App = () => {
             isRecording={isRecording} handleStartProcess={handleStartProcess}
             currentTime={currentTime} duration={duration} videoURL={videoURL} videoFileName={videoFileName}
             zoomLevel={zoomLevel} setZoomLevel={setZoomLevel}
+            onSaveProject={handleSaveProject}
+            onLoadProject={handleLoadProjectClick}
+            onNewProject={handleNewProject}
           />
           <VideoPreview 
             videoHeight={videoHeight} videoURL={videoURL} videoRef={videoRef}
@@ -657,6 +773,45 @@ const App = () => {
                 </div>
                 <div className="modal-actions"><button className="btn-close" onClick={() => setShowSettings(false)}>DONE</button></div>
              </div>
+          </div>
+        )}
+        
+        {/* Project Load Modal */}
+        {showProjectModal && projectModalMode === 'load' && (
+          <div className="modal-overlay" onClick={() => setShowProjectModal(false)}>
+            <div className="settings-modal project-modal" onClick={e => e.stopPropagation()}>
+              <h2><FolderOpen /> LOAD PROJECT</h2>
+              <div className="project-list">
+                {savedProjects.length === 0 ? (
+                  <div className="project-empty">No saved projects found.</div>
+                ) : (
+                  savedProjects.map(project => (
+                    <div 
+                      key={project.id} 
+                      className="project-item"
+                      onClick={() => handleLoadProject(project.id)}
+                    >
+                      <div className="project-info">
+                        <div className="project-name">{project.name}</div>
+                        <div className="project-meta">
+                          {new Date(project.timestamp).toLocaleDateString()} • {project.cueCount} cues • {project.clipCount} clips
+                        </div>
+                      </div>
+                      <button 
+                        className="project-delete-btn"
+                        onClick={(e) => handleDeleteSavedProject(project.id, e)}
+                        title="Delete project"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="modal-actions">
+                <button className="btn-close btn-secondary" onClick={() => setShowProjectModal(false)}>CANCEL</button>
+              </div>
+            </div>
           </div>
         )}
       </div>
