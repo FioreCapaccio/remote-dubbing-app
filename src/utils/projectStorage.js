@@ -61,7 +61,7 @@ async function urlToBase64(url) {
 }
 
 // Create a new project object from current state
-export async function createProjectSnapshot(projectName, state) {
+export async function createProjectSnapshot(projectName, state, options = {}) {
   const {
     cues,
     tracks,
@@ -69,6 +69,8 @@ export async function createProjectSnapshot(projectName, state) {
     videoFileName,
     videoURL
   } = state;
+
+  const { category = '', description = '', tags = [] } = options;
 
   // Process tracks: convert clip URLs to base64 for persistence
   const processedTracks = await Promise.all(
@@ -111,6 +113,9 @@ export async function createProjectSnapshot(projectName, state) {
   return {
     id: `project_${Date.now()}`,
     name: projectName || 'Untitled Project',
+    category: category || '', // Virtual folder/category path
+    description: description || '',
+    tags: tags || [],
     timestamp: Date.now(),
     cues: cues.map(c => ({
       id: c.id,
@@ -132,9 +137,9 @@ export async function createProjectSnapshot(projectName, state) {
 }
 
 // Save project to IndexedDB
-export async function saveProject(projectName, state) {
+export async function saveProject(projectName, state, options = {}) {
   const db = await initDB();
-  const snapshot = await createProjectSnapshot(projectName, state);
+  const snapshot = await createProjectSnapshot(projectName, state, options);
   
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
@@ -161,10 +166,13 @@ export async function listProjects() {
     request.onsuccess = (event) => {
       const cursor = event.target.result;
       if (cursor) {
-        const { id, name, timestamp, cues, tracks, audioSettings, videoFileName } = cursor.value;
+        const { id, name, category, description, tags, timestamp, cues, tracks, audioSettings, videoFileName } = cursor.value;
         projects.push({
           id,
           name,
+          category: category || '',
+          description: description || '',
+          tags: tags || [],
           timestamp,
           cueCount: cues?.length || 0,
           clipCount: tracks?.reduce((sum, t) => sum + (t.clips?.length || 0), 0) || 0,
@@ -256,6 +264,9 @@ export async function loadProject(projectId) {
       resolve({
         id: data.id,
         name: data.name,
+        category: data.category || '',
+        description: data.description || '',
+        tags: data.tags || [],
         timestamp: data.timestamp,
         cues: data.cues || [],
         tracks: finalTracks,
@@ -283,17 +294,22 @@ export async function deleteProject(projectId) {
 }
 
 // Export project as JSON file (for backup/sharing)
-export async function exportProjectToFile(projectName, state) {
-  const snapshot = await createProjectSnapshot(projectName, state);
+export async function exportProjectToFile(projectName, state, options = {}) {
+  const snapshot = await createProjectSnapshot(projectName, state, options);
   const json = JSON.stringify(snapshot, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   
+  const { filename } = options;
+  const downloadName = filename || `${projectName.replace(/[^a-zA-Z0-9_-]/g, '_')}_VocalSync.json`;
+  
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${projectName.replace(/[^a-zA-Z0-9_-]/g, '_')}_VocalSync.json`;
+  a.download = downloadName;
   a.click();
   URL.revokeObjectURL(url);
+  
+  return downloadName;
 }
 
 // Import project from JSON file

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Settings2, HardDrive, Headphones, FolderOpen, Trash2 } from 'lucide-react';
+import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Download, Upload, Tag, Folder } from 'lucide-react';
 
 // Hooks
 import { useAudioRecorder } from './hooks/useAudioRecorder';
@@ -15,7 +15,7 @@ import VideoPreview from './components/VideoPreview';
 
 // Utils
 import { renderMixdown } from './utils/audioExport';
-import { saveProject, loadProject, listProjects, deleteProject } from './utils/projectStorage';
+import { saveProject, loadProject, listProjects, deleteProject, exportProjectToFile, importProjectFromFile } from './utils/projectStorage';
 
 // Styles
 import './index.css';
@@ -80,6 +80,11 @@ const App = () => {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [projectModalMode, setProjectModalMode] = useState('save'); // 'save' or 'load'
   const [projectName, setProjectName] = useState('');
+  const [projectCategory, setProjectCategory] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFilename, setExportFilename] = useState('');
 
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -460,8 +465,19 @@ const App = () => {
   }, [stopInternalPlayhead]);
 
   const handleSaveProject = useCallback(async () => {
-    const name = projectName || prompt('Enter project name:', videoFileName ? videoFileName.replace(/\.[^/.]+$/, '') : 'Untitled Project');
-    if (!name) return;
+    setProjectModalMode('save');
+    setProjectName(videoFileName ? videoFileName.replace(/\.[^/.]+$/, '') : 'Untitled Project');
+    setProjectCategory('');
+    setProjectDescription('');
+    setShowProjectModal(true);
+  }, [videoFileName]);
+
+  const handleConfirmSaveProject = useCallback(async () => {
+    const name = projectName.trim();
+    if (!name) {
+      alert('Please enter a project name');
+      return;
+    }
     
     try {
       const state = {
@@ -470,14 +486,59 @@ const App = () => {
         audioSettings,
         videoFileName
       };
-      await saveProject(name, state);
-      setProjectName(name);
+      const options = {
+        category: projectCategory.trim(),
+        description: projectDescription.trim()
+      };
+      await saveProject(name, state, options);
+      setShowProjectModal(false);
       alert(`Project "${name}" saved successfully!`);
     } catch (err) {
       console.error('Save failed:', err);
       alert('Failed to save project. Please try again.');
     }
-  }, [cues, tracks, audioSettings, videoFileName, projectName]);
+  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription]);
+
+  const handleExportProject = useCallback(async () => {
+    const name = projectName || videoFileName?.replace(/\.[^/.]+$/, '') || 'Untitled Project';
+    setExportFilename(`${name.replace(/[^a-zA-Z0-9_-]/g, '_')}_VocalSync.json`);
+    setShowExportModal(true);
+  }, [projectName, videoFileName]);
+
+  const handleConfirmExport = useCallback(async () => {
+    const name = projectName || videoFileName?.replace(/\.[^/.]+$/, '') || 'Untitled Project';
+    try {
+      const state = {
+        cues,
+        tracks,
+        audioSettings,
+        videoFileName
+      };
+      const options = {
+        category: projectCategory,
+        description: projectDescription,
+        filename: exportFilename
+      };
+      await exportProjectToFile(name, state, options);
+      setShowExportModal(false);
+      alert(`Project exported as "${exportFilename}"`);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert('Failed to export project. Please try again.');
+    }
+  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription, exportFilename]);
+
+  const handleImportProjectFromFile = useCallback(async (file) => {
+    try {
+      const project = await importProjectFromFile(file);
+      const projects = await listProjects();
+      setSavedProjects(projects);
+      alert(`Project "${project.name}" imported successfully!`);
+    } catch (err) {
+      console.error('Import failed:', err);
+      alert('Failed to import project. Please check the file format.');
+    }
+  }, []);
 
   const handleLoadProjectClick = useCallback(async () => {
     try {
@@ -714,6 +775,7 @@ const App = () => {
             onSaveProject={handleSaveProject}
             onLoadProject={handleLoadProjectClick}
             onNewProject={handleNewProject}
+            onExportProject={handleExportProject}
             onImportCues={handleImportCues}
           />
           <VideoPreview 
@@ -786,23 +848,69 @@ const App = () => {
         {/* Project Load Modal */}
         {showProjectModal && projectModalMode === 'load' && (
           <div className="modal-overlay" onClick={() => setShowProjectModal(false)}>
-            <div className="settings-modal project-modal" onClick={e => e.stopPropagation()}>
+            <div className="settings-modal project-modal project-modal-enhanced" onClick={e => e.stopPropagation()}>
               <h2><FolderOpen /> LOAD PROJECT</h2>
+              
+              {/* Category Filter */}
+              {savedProjects.some(p => p.category) && (
+                <div className="project-filter">
+                  <Folder size={14} />
+                  <select 
+                    value={selectedCategoryFilter} 
+                    onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                  >
+                    <option value="">All Categories</option>
+                    {[...new Set(savedProjects.map(p => p.category).filter(Boolean))].map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Import from File */}
+              <div className="project-import-section">
+                <label className="project-import-label">
+                  <Upload size={14} />
+                  Import from file:
+                  <input 
+                    type="file" 
+                    accept=".json" 
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) handleImportProjectFromFile(file);
+                      e.target.value = '';
+                    }}
+                    style={{ display: 'none' }}
+                  />
+                  <span className="project-import-btn">Choose File</span>
+                </label>
+              </div>
+
               <div className="project-list">
                 {savedProjects.length === 0 ? (
                   <div className="project-empty">No saved projects found.</div>
                 ) : (
-                  savedProjects.map(project => (
+                  savedProjects
+                    .filter(p => !selectedCategoryFilter || p.category === selectedCategoryFilter)
+                    .map(project => (
                     <div 
                       key={project.id} 
                       className="project-item"
                       onClick={() => handleLoadProject(project.id)}
                     >
                       <div className="project-info">
-                        <div className="project-name">{project.name}</div>
+                        <div className="project-name">
+                          {project.name}
+                          {project.category && (
+                            <span className="project-category-badge">{project.category}</span>
+                          )}
+                        </div>
                         <div className="project-meta">
                           {new Date(project.timestamp).toLocaleDateString()} • {project.cueCount} cues • {project.clipCount} clips
                         </div>
+                        {project.description && (
+                          <div className="project-description">{project.description}</div>
+                        )}
                       </div>
                       <button 
                         className="project-delete-btn"
@@ -817,6 +925,88 @@ const App = () => {
               </div>
               <div className="modal-actions">
                 <button className="btn-close btn-secondary" onClick={() => setShowProjectModal(false)}>CANCEL</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Project Save Modal */}
+        {showProjectModal && projectModalMode === 'save' && (
+          <div className="modal-overlay" onClick={() => setShowProjectModal(false)}>
+            <div className="settings-modal project-modal project-modal-enhanced" onClick={e => e.stopPropagation()}>
+              <h2><Save /> SAVE PROJECT</h2>
+              
+              <div className="project-form">
+                <div className="project-form-field">
+                  <label><FolderOpen size={14} /> Project Name *</label>
+                  <input 
+                    type="text" 
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="Enter project name..."
+                    autoFocus
+                  />
+                </div>
+
+                <div className="project-form-field">
+                  <label><Folder size={14} /> Category / Path</label>
+                  <input 
+                    type="text" 
+                    value={projectCategory}
+                    onChange={(e) => setProjectCategory(e.target.value)}
+                    placeholder="e.g., Projects/ADR/Scene1"
+                    list="category-suggestions"
+                  />
+                  <datalist id="category-suggestions">
+                    {[...new Set(savedProjects.map(p => p.category).filter(Boolean))].map(cat => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
+                  <span className="field-hint">Organize projects into virtual folders</span>
+                </div>
+
+                <div className="project-form-field">
+                  <label><Tag size={14} /> Description</label>
+                  <textarea 
+                    value={projectDescription}
+                    onChange={(e) => setProjectDescription(e.target.value)}
+                    placeholder="Optional description..."
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button className="btn-close btn-secondary" onClick={() => setShowProjectModal(false)}>CANCEL</button>
+                <button className="btn-close" onClick={handleConfirmSaveProject}>SAVE</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Export to File Modal */}
+        {showExportModal && (
+          <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
+            <div className="settings-modal project-modal" onClick={e => e.stopPropagation()}>
+              <h2><Download /> EXPORT PROJECT</h2>
+              
+              <div className="project-form">
+                <div className="project-form-field">
+                  <label>Filename</label>
+                  <input 
+                    type="text" 
+                    value={exportFilename}
+                    onChange={(e) => setExportFilename(e.target.value)}
+                    placeholder="project_name_VocalSync.json"
+                    autoFocus
+                  />
+                  <span className="field-hint">The file will be saved to your Downloads folder</span>
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button className="btn-close btn-secondary" onClick={() => setShowExportModal(false)}>CANCEL</button>
+                <button className="btn-close" onClick={handleConfirmExport}>EXPORT</button>
               </div>
             </div>
           </div>
