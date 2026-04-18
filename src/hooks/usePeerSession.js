@@ -4,6 +4,30 @@ import * as PeerModule from 'peerjs';
 // Defense against ESM/CJS mismatch across different bundlers/environments
 const Peer = PeerModule.Peer || PeerModule.default || PeerModule;
 
+// Configurazione PeerJS - usa server pubblico con fallback
+const PEER_CONFIG = {
+  // Server PeerJS pubblico (gratuito ma potenzialmente instabile)
+  // In produzione, considera di usare un server dedicato
+  host: '0.peerjs.com',
+  port: 443,
+  path: '/',
+  secure: true,
+  // Configurazione ICE per NAT traversal
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+    ]
+  },
+  // Retry configuration
+  retry: {
+    maxRetries: 5,
+    retryDelay: 3000,
+    backoffMultiplier: 1.5
+  }
+};
+
 // connectionStatus: 'disconnected' | 'waiting' | 'connected'
 export const usePeerSession = (roomName, role, onRemoteCommand) => {
   const [peerId, setPeerId] = useState(null);
@@ -11,12 +35,15 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
   const [remoteStream, setRemoteStream] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [connectionError, setConnectionError] = useState(null);
 
   const peerRef = useRef(null);
   const callRef = useRef(null);
   const localStreamRef = useRef(null);
   const onRemoteCommandRef = useRef(onRemoteCommand);
   const reconnectTimerRef = useRef(null);
+  const retryCountRef = useRef(0);
+  const isDestroyedRef = useRef(false);
 
   useEffect(() => {
     onRemoteCommandRef.current = onRemoteCommand;
@@ -27,101 +54,204 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
       setConnectionStatus('disconnected');
       setPeerId(null);
       setIsConnected(false);
+      setConnectionError(null);
       return;
     }
 
     const fullRoomId = `vocal-sync-room-${roomName}`;
     const myId = role === 'host' ? fullRoomId : `guest-${Date.now()}`;
+    
+    isDestroyedRef.current = false;
+    retryCountRef.current = 0;
 
     let peer;
     try {
       if (!Peer || typeof Peer !== 'function') {
         throw new Error("PeerJS constructor not found. Verification: " + typeof Peer);
       }
-      peer = new Peer(myId);
+      console.log('[PeerSession] Creating Peer with ID:', myId);
+      console.log('[PeerSession] PeerJS config:', PEER_CONFIG);
+      peer = new Peer(myId, PEER_CONFIG);
     } catch (err) {
-      console.error("PeerJS init error:", err);
+      console.error("[PeerSession] PeerJS init error:", err);
+      setConnectionError(err.message);
       return;
     }
     peerRef.current = peer;
     setConnectionStatus('waiting');
 
     function setupConnection(conn) {
+      console.log('[PeerSession] Setting up data connection...');
       setConnection(conn);
+      
       conn.on('open', () => {
+        console.log('[PeerSession] Data connection OPEN');
         setIsConnected(true);
         setConnectionStatus('connected');
+        setConnectionError(null);
+        retryCountRef.current = 0;
         if (reconnectTimerRef.current) {
           clearTimeout(reconnectTimerRef.current);
           reconnectTimerRef.current = null;
         }
       });
+      
       conn.on('close', () => {
+        console.log('[PeerSession] Data connection CLOSED');
         setIsConnected(false);
         setConnection(null);
         setConnectionStatus('waiting');
-        // Auto-reconnect for guest side
-        if (role === 'guest' && peer && !peer.destroyed) {
-          reconnectTimerRef.current = setTimeout(() => {
-            if (peer && !peer.destroyed) {
-              setupConnection(peer.connect(fullRoomId));
-            }
-          }, 3000);
+        
+        // Auto-reconnect for guest side con backoff esponenziale
+        if (role === 'guest' && peer && !peer.destroyed && !isDestroyedRef.current) {
+          const delay = Math.min(
+            PEER_CONFIG.retry.retryDelay * Math.pow(PEER_CONFIG.retry.backoffMultiplier, retryCountRef.current),
+            30000 // Max 30 secondi
+          );
+          retryCountRef.current++;
+          
+          if (retryCountRef.current <= PEER_CONFIG.retry.maxRetries) {
+            console.log(`[PeerSession] Reconnecting in ${delay}ms (attempt ${retryCountRef.current}/${PEER_CONFIG.retry.maxRetries})`);
+            reconnectTimerRef.current = setTimeout(() => {
+              if (peer && !peer.destroyed && !isDestroyedRef.current) {
+                console.log('[PeerSession] Attempting to reconnect...');
+                setupConnection(peer.connect(fullRoomId));
+              }
+            }, delay);
+          } else {
+            console.error('[PeerSession] Max retry attempts reached');
+            setConnectionError('Failed to connect after multiple attempts');
+          }
         }
       });
+      
       conn.on('error', (err) => {
-        console.warn('DataConnection error:', err);
+        console.error('[PeerSession] DataConnection error:', err);
+        setConnectionError(err.message || 'Connection error');
         setIsConnected(false);
         setConnection(null);
         setConnectionStatus('waiting');
-        if (role === 'guest' && peer && !peer.destroyed) {
-          reconnectTimerRef.current = setTimeout(() => {
-            if (peer && !peer.destroyed) {
-              setupConnection(peer.connect(fullRoomId));
-            }
-          }, 3000);
+        
+        if (role === 'guest' && peer && !peer.destroyed && !isDestroyedRef.current) {
+          const delay = Math.min(
+            PEER_CONFIG.retry.retryDelay * Math.pow(PEER_CONFIG.retry.backoffMultiplier, retryCountRef.current),
+            30000
+          );
+          retryCountRef.current++;
+          
+          if (retryCountRef.current <= PEER_CONFIG.retry.maxRetries) {
+            console.log(`[PeerSession] Reconnecting after error in ${delay}ms (attempt ${retryCountRef.current})`);
+            reconnectTimerRef.current = setTimeout(() => {
+              if (peer && !peer.destroyed && !isDestroyedRef.current) {
+                setupConnection(peer.connect(fullRoomId));
+              }
+            }, delay);
+          }
         }
       });
+      
       conn.on('data', (data) => {
+        console.log('[PeerSession] Received data:', data.type);
         if (onRemoteCommandRef.current) onRemoteCommandRef.current(data);
       });
     }
 
     peer.on('open', (id) => {
+      console.log('[PeerSession] Peer opened with ID:', id);
       setPeerId(id);
       if (role === 'guest') {
+        console.log('[PeerSession] Guest connecting to host:', fullRoomId);
         setupConnection(peer.connect(fullRoomId));
       }
     });
 
     peer.on('connection', (conn) => {
+      console.log('[PeerSession] Host received connection from:', conn.peer);
       setupConnection(conn);
     });
 
     peer.on('call', (call) => {
+      console.log('[PeerSession] Incoming call from:', call.peer);
       // Quando riceviamo una chiamata, rispondiamo con il nostro stream audio
       // per permettere la comunicazione bidirezionale
       navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
         localStreamRef.current = stream;
         call.answer(stream);
-      }).catch(() => {
+        console.log('[PeerSession] Answered call with local stream');
+      }).catch((err) => {
+        console.error('[PeerSession] Failed to get mic for call answer:', err);
         // Se non riusciamo ad ottenere il microfono, rispondiamo comunque
         call.answer();
       });
       
       call.on('stream', (remote) => {
+        console.log('[PeerSession] Received remote stream from call');
         setRemoteStream(remote);
+      });
+      
+      call.on('error', (err) => {
+        console.error('[PeerSession] Call error:', err);
+      });
+      
+      call.on('close', () => {
+        console.log('[PeerSession] Call closed');
       });
     });
 
     peer.on('error', (err) => {
-      console.warn('PeerJS error:', err.type, err.message || err);
+      console.error('[PeerSession] PeerJS error:', err.type, err.message || err);
+      
+      // Gestione specifica degli errori
+      switch (err.type) {
+        case 'peer-unavailable':
+          console.warn('[PeerSession] Host not available (peer-unavailable)');
+          setConnectionError('Host not available. Waiting for host to join...');
+          break;
+        case 'network':
+          console.error('[PeerSession] Network error');
+          setConnectionError('Network error. Check your connection.');
+          break;
+        case 'webrtc':
+          console.error('[PeerSession] WebRTC error');
+          setConnectionError('WebRTC connection failed. Try refreshing.');
+          break;
+        case 'disconnected':
+          console.warn('[PeerSession] Peer disconnected from server');
+          setConnectionStatus('waiting');
+          break;
+        case 'socket-error':
+        case 'server-error':
+          console.error('[PeerSession] PeerJS server error:', err.type);
+          setConnectionError('Signaling server error. Retrying...');
+          break;
+        default:
+          console.error('[PeerSession] Unknown PeerJS error:', err.type);
+          setConnectionError(`Connection error: ${err.type}`);
+      }
+      
       if (err.type !== 'peer-unavailable') {
         setConnectionStatus('waiting');
       }
     });
+    
+    peer.on('disconnected', () => {
+      console.warn('[PeerSession] Peer disconnected from signaling server');
+      setConnectionStatus('waiting');
+      
+      // Tentativo di riconnessione al server di segnalazione
+      if (peer && !peer.destroyed && !isDestroyedRef.current) {
+        console.log('[PeerSession] Attempting to reconnect to signaling server...');
+        setTimeout(() => {
+          if (peer && !peer.destroyed && !isDestroyedRef.current) {
+            peer.reconnect();
+          }
+        }, 2000);
+      }
+    });
 
     return () => {
+      console.log('[PeerSession] Cleaning up PeerJS connection...');
+      isDestroyedRef.current = true;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
       if (peer) peer.destroy();
@@ -130,32 +260,50 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
 
   const sendCommand = useCallback((cmd) => {
     if (connection && isConnected) {
+      console.log('[PeerSession] Sending command:', cmd.type);
       connection.send(cmd);
+    } else {
+      console.warn('[PeerSession] Cannot send command - not connected');
     }
   }, [connection, isConnected]);
 
   const startTalkback = useCallback(async () => {
-    if (!peerRef.current) return;
+    if (!peerRef.current) {
+      console.error('[PeerSession] Cannot start talkback - peer not initialized');
+      return;
+    }
     try {
+      console.log('[PeerSession] Starting talkback...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
       if (connection) {
         // Chiama l'altro peer e invia il proprio stream
+        console.log('[PeerSession] Calling peer:', connection.peer);
         const call = peerRef.current.call(connection.peer, stream);
         callRef.current = call;
         
         // Se siamo l'host (director), riceviamo anche lo stream remoto dall'actor
         // quando l'actor risponde
         call.on('stream', (remote) => {
+          console.log('[PeerSession] Received remote stream in talkback');
           setRemoteStream(remote);
+        });
+        
+        call.on('error', (err) => {
+          console.error('[PeerSession] Talkback call error:', err);
+        });
+        
+        call.on('close', () => {
+          console.log('[PeerSession] Talkback call closed');
         });
       }
     } catch (err) {
-      console.error("Talkback error:", err);
+      console.error("[PeerSession] Talkback error:", err);
     }
   }, [connection]);
 
   const stopTalkback = useCallback(() => {
+    console.log('[PeerSession] Stopping talkback...');
     if (callRef.current) {
       callRef.current.close();
       callRef.current = null;
@@ -166,5 +314,5 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     }
   }, []);
 
-  return { peerId, isConnected, connectionStatus, sendCommand, remoteStream, startTalkback, stopTalkback };
+  return { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback };
 };

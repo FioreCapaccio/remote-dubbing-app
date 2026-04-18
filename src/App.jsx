@@ -104,7 +104,7 @@ const App = () => {
     }
   }, []);
 
-  const { peerId, isConnected, connectionStatus, sendCommand, remoteStream, startTalkback, stopTalkback } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
+  const { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
 
   // Custom Hooks - pass remoteStream to include remote actor audio in recording
   const { 
@@ -305,7 +305,12 @@ const App = () => {
   }, [isPlaying, startInternalPlayhead, stopInternalPlayhead]);
 
   const handleStartProcess = useCallback(() => {
-    console.log('[App] handleStartProcess called, isRecording:', isRecording, 'countdown:', countdown);
+    console.log('[App] === REC BUTTON PRESSED ===');
+    console.log('[App] isRecording:', isRecording, '| countdown:', countdown);
+    console.log('[App] remoteStream:', remoteStream ? 'AVAILABLE' : 'NULL');
+    console.log('[App] sessionRole:', sessionRole, '| isConnected:', isConnected);
+    console.log('[App] tracks:', tracks.map(t => ({ id: t.id, name: t.name, audioSource: t.audioSource, recEnabled: t.recEnabled })));
+    
     if (isRecording) {
       console.log('[App] Stopping recording...');
       stopRecording();
@@ -316,10 +321,23 @@ const App = () => {
       return;
     }
     if (countdown !== null) {
+      console.log('[App] Cancelling countdown...');
       cancelCountdown();
       if (sendCommandRef.current) sendCommandRef.current({ type: 'COUNTDOWN_CANCEL' });
       return;
     }
+    
+    // Verifica se ci sono tracce che richiedono remoteStream
+    const tracksNeedingRemote = tracks.filter(t => t.type === 'audio' && t.recEnabled !== false && t.audioSource === 'remote');
+    console.log('[App] Tracks needing remote stream:', tracksNeedingRemote.length);
+    
+    if (tracksNeedingRemote.length > 0 && !remoteStream) {
+      console.warn('[App] WARNING: Some tracks require remote stream but it is not available yet!');
+      console.warn('[App] Tracks:', tracksNeedingRemote.map(t => t.name));
+      // Non blocchiamo, ma avvisiamo - la registrazione userà il fallback locale
+    }
+    
+    console.log('[App] Starting countdown and sending COUNTDOWN_START command...');
     if (sendCommandRef.current) sendCommandRef.current({ type: 'COUNTDOWN_START' });
     startCountdownDisplay(() => {
       const startTime = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
@@ -351,7 +369,7 @@ const App = () => {
         if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
       }
     });
-  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead, tracks]);
+  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead, tracks, remoteStream, sessionRole, isConnected]);
 
   // Define handleRemoteCommand and sync to ref
   const handleRemoteCommand = useCallback((cmd) => {
@@ -861,7 +879,7 @@ const App = () => {
       <div className="app-container" onMouseUp={() => setDraggingClip(null)}>
         <DawSidebar 
           sidebarWidth={sidebarWidth} roomName={roomName} setRoomName={setRoomName}
-          isConnected={isConnected} connectionStatus={connectionStatus} peerId={peerId}
+          isConnected={isConnected} connectionStatus={connectionStatus} connectionError={connectionError} peerId={peerId}
           sessionRole={sessionRole} setSessionRole={setSessionRole}
           startTalkback={startTalkback} stopTalkback={stopTalkback}
           cues={cues}

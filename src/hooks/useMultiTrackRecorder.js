@@ -120,8 +120,11 @@ export const useMultiTrackRecorder = (settings = { sampleRate: 44100 }, remoteSt
    * @param {Array} trackConfigs - Array di { trackId, audioSource } dove audioSource è 'local'|'remote'
    */
   const startRecording = useCallback((trackConfigs = []) => {
-    console.log('[MultiTrackRecorder] startRecording called with:', trackConfigs);
-    console.log('[MultiTrackRecorder] micStreamRef.current:', micStreamRef.current ? 'exists' : 'NULL');
+    console.log('[MultiTrackRecorder] === START RECORDING CALLED ===');
+    console.log('[MultiTrackRecorder] trackConfigs:', trackConfigs);
+    console.log('[MultiTrackRecorder] micStreamRef.current:', micStreamRef.current ? 'EXISTS' : 'NULL');
+    console.log('[MultiTrackRecorder] remoteStreamRef.current:', remoteStreamRef.current ? 'EXISTS' : 'NULL');
+    
     try {
       if (!micStreamRef.current) {
         console.error('[MultiTrackRecorder] FATAL: micStreamRef.current is null - microphone not initialized!');
@@ -129,7 +132,17 @@ export const useMultiTrackRecorder = (settings = { sampleRate: 44100 }, remoteSt
         return;
       }
       
-      console.log('[MultiTrackRecorder] Starting multi-track recording:', trackConfigs);
+      // Verifica se ci sono tracce remote ma lo stream remoto non è disponibile
+      const remoteTrackConfigs = trackConfigs.filter(tc => tc.audioSource === 'remote');
+      console.log('[MultiTrackRecorder] Remote track configs:', remoteTrackConfigs);
+      
+      if (remoteTrackConfigs.length > 0 && !remoteStreamRef.current) {
+        console.warn('[MultiTrackRecorder] WARNING: Remote tracks requested but remoteStream is not available!');
+        console.warn('[MultiTrackRecorder] Remote tracks will fallback to local microphone.');
+        // Non blocchiamo, ma le tracce remote useranno il fallback locale
+      }
+      
+      console.log('[MultiTrackRecorder] Starting multi-track recording...');
       
       // Filtriamo solo le tracce audio (non video)
       const audioTrackConfigs = trackConfigs.filter(tc => tc.trackId !== 'video');
@@ -151,9 +164,15 @@ export const useMultiTrackRecorder = (settings = { sampleRate: 44100 }, remoteSt
         let streamToRecord = null;
         
         // Determina quale stream registrare
-        if (audioSource === 'remote' && remoteStreamRef.current) {
-          streamToRecord = remoteStreamRef.current;
-          console.log(`[MultiTrackRecorder] Track ${trackId}: Recording REMOTE stream`);
+        if (audioSource === 'remote') {
+          if (remoteStreamRef.current) {
+            streamToRecord = remoteStreamRef.current;
+            console.log(`[MultiTrackRecorder] Track ${trackId}: Recording REMOTE stream ✓`);
+          } else {
+            // Fallback a local se remote non è disponibile
+            streamToRecord = micStreamRef.current;
+            console.log(`[MultiTrackRecorder] Track ${trackId}: REMOTE requested but NOT AVAILABLE - using LOCAL fallback`);
+          }
         } else {
           // Default: registra il microfono locale
           streamToRecord = micStreamRef.current;
@@ -199,11 +218,13 @@ export const useMultiTrackRecorder = (settings = { sampleRate: 44100 }, remoteSt
           
           // Quando tutte le registrazioni sono completate, aggiorna lo stato takes
           if (completedCount === activeRecordingsRef.current.length) {
+            console.log(`[MultiTrackRecorder] All ${completedCount} recordings completed`);
             setTakes((prev) => [...completedRecordings, ...prev]);
           }
         };
 
         mediaRecorder.start();
+        console.log(`[MultiTrackRecorder] MediaRecorder started for track ${trackId}`);
       });
 
       setIsRecording(true);

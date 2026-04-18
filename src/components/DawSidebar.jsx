@@ -7,7 +7,7 @@ import {
 import VolumeMeter from './VolumeMeter';
 import { renderSingleClip } from '../utils/audioExport';
 
-const ConnectionIndicator = ({ connectionStatus, peerId }) => {
+const ConnectionIndicator = ({ connectionStatus, connectionError, peerId }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -42,6 +42,18 @@ const ConnectionIndicator = ({ connectionStatus, peerId }) => {
         <Icon size={10} style={{ flexShrink: 0 }} />
         <span className="conn-status-label">{label}</span>
       </div>
+      {connectionError && (
+        <div className="connection-error" style={{ 
+          fontSize: '0.65rem', 
+          color: '#ff6b6b', 
+          marginTop: '4px',
+          padding: '2px 4px',
+          background: 'rgba(255, 107, 107, 0.1)',
+          borderRadius: '3px'
+        }}>
+          {connectionError}
+        </div>
+      )}
       {peerId && (
         <button className="peer-id-copy" onClick={handleCopy} title="Copy Peer ID">
           <span className="peer-id-text">{peerId}</span>
@@ -98,7 +110,7 @@ function makeTakeName(videoFileName, cueIdx, takeIdx) {
 const DawSidebar = ({ 
   sidebarWidth, 
   roomName, setRoomName, 
-  isConnected, connectionStatus, peerId, 
+  isConnected, connectionStatus, connectionError, peerId, 
   sessionRole, setSessionRole, 
   startTalkback, stopTalkback, 
   cues,
@@ -218,7 +230,7 @@ const DawSidebar = ({
 
         <div className="room-box">
           <input placeholder="ROOM ID..." value={roomName} onChange={(e) => setRoomName(e.target.value)} />
-          <ConnectionIndicator connectionStatus={connectionStatus || (isConnected ? 'connected' : roomName ? 'waiting' : 'disconnected')} peerId={peerId} />
+          <ConnectionIndicator connectionStatus={connectionStatus || (isConnected ? 'connected' : roomName ? 'waiting' : 'disconnected')} connectionError={connectionError} peerId={peerId} />
         </div>
       </div>
 
