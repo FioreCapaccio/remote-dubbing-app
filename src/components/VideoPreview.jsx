@@ -1,15 +1,33 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Video } from 'lucide-react';
 
 const VideoPreview = ({ 
   videoHeight, videoURL, videoRef, 
   setCurrentTime, setDuration, 
-  currentTime, activeCue,
+  currentTime, activeCue, cues,
   countdown,
   setVideoURL 
 }) => {
   const fileInputRef = useRef(null);
   const [isDraggingVideo, setIsDraggingVideo] = useState(false);
+  const [localActiveCue, setLocalActiveCue] = useState(null);
+
+  // Compute active cue locally using RAF for exact timing (fixes delay)
+  useEffect(() => {
+    let rafId;
+    const checkActiveCue = () => {
+      const exactTime = videoRef.current?.currentTime ?? currentTime;
+      // Find active cue based on exact video time
+      const cue = cues?.find(c => {
+        const end = c.timeOut != null ? c.timeOut : c.timeIn + 3;
+        return exactTime >= c.timeIn && exactTime < end;
+      }) || null;
+      setLocalActiveCue(cue);
+      rafId = requestAnimationFrame(checkActiveCue);
+    };
+    rafId = requestAnimationFrame(checkActiveCue);
+    return () => cancelAnimationFrame(rafId);
+  }, [cues, currentTime, videoRef]);
 
   const loadFile = (file) => {
     if (!file || !file.type.startsWith('video/')) return;
@@ -50,13 +68,13 @@ const VideoPreview = ({
           <div className="tc-overlay">
             {formatTC(currentTime)}
           </div>
-          {activeCue && (activeCue.text || activeCue.character) && (
+          {localActiveCue && (localActiveCue.text || localActiveCue.character) && (
             <div className="adr-subtitle-overlay">
-              {activeCue.character && (
-                <div className="subtitle-character">{activeCue.character}</div>
+              {localActiveCue.character && (
+                <div className="subtitle-character">{localActiveCue.character}</div>
               )}
-              {activeCue.text && (
-                <div className="subtitle-text">{activeCue.text}</div>
+              {localActiveCue.text && (
+                <div className="subtitle-text">{localActiveCue.text}</div>
               )}
             </div>
           )}

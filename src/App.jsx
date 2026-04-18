@@ -156,7 +156,16 @@ const App = () => {
   }, [cues]);
 
   const handleUpdateCue = useCallback((id, field, value) => {
-    let newCues = cues.map(c => c.id === id ? { ...c, [field]: value } : c);
+    let newCues = cues.map(c => {
+      if (c.id !== id) return c;
+      const updated = { ...c, [field]: value };
+      // When timeIn changes, also update timeOut to maintain consistent duration
+      if (field === 'timeIn' && c.timeOut != null) {
+        const duration = c.timeOut - c.timeIn;
+        updated.timeOut = value + duration;
+      }
+      return updated;
+    });
     if (field === 'timeIn') newCues = newCues.sort((a, b) => a.timeIn - b.timeIn);
     setCues(newCues);
     if (sendCommandRef.current) sendCommandRef.current({ type: 'CUE_SYNC', cues: newCues });
@@ -570,6 +579,7 @@ const App = () => {
             setCurrentTime={setCurrentTime} setDuration={setDuration} currentTime={currentTime}
             countdown={countdown}
             activeCue={activeCue}
+            cues={cues}
             setVideoURL={(url, name) => { setVideoURL(url); if (name) setVideoFileName(name); }}
           />
           <div className="layout-divider-h" onMouseDown={(e) => { e.preventDefault(); isResizingVertical.current = true; document.body.style.cursor = 'row-resize'; }} />
