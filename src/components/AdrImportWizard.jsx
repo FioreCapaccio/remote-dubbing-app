@@ -271,7 +271,7 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
       const parsedItem = {
         progressivo: columnMap.progressivo !== null ? String(row[columnMap.progressivo] || '') : String(idx + 1),
         timeIn,
-        timeOut,
+        timeOut: timeOut !== null ? timeOut : timeIn + 3, // Default duration 3 seconds if timeOut not provided
         battuta: columnMap.battuta !== null ? String(row[columnMap.battuta] || '') : '',
         personaggio: columnMap.personaggio !== null ? String(row[columnMap.personaggio] || '') : ''
       };

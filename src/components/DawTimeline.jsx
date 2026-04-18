@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Circle } from 'lucide-react';
 import WaveformOverlay from './WaveformOverlay';
 
 const STATUS_COLORS = {
@@ -86,7 +86,8 @@ const DawTimeline = ({
       volume: 1, 
       muted: false, 
       solo: false,
-      audioSource: 'local'
+      audioSource: 'local',
+      recEnabled: true // Default REC enabled
     }]);
   };
 
@@ -236,6 +237,13 @@ const DawTimeline = ({
                 </select>
               )}
               <div className="row-controls">
+                <button
+                  className={`rec-btn ${track.recEnabled !== false ? 'rec-on' : ''}`}
+                  title={track.recEnabled !== false ? 'REC On (click to disable)' : 'REC Off (click to enable)'}
+                  onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'recEnabled', track.recEnabled === false ? true : false); }}
+                >
+                  <Circle size={10} fill={track.recEnabled !== false ? "#ff4444" : "transparent"} color="#ff4444" />
+                </button>
                 <button
                   className={track.muted ? 'm-on' : ''}
                   title={track.muted ? 'Unmute' : 'Mute'}

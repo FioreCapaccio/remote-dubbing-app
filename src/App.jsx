@@ -320,8 +320,9 @@ const App = () => {
       recordStartTime.current = startTime;
       
       // Prepara le configurazioni delle tracce per la registrazione multi-traccia
+      // Filtra solo le tracce audio con REC abilitato
       const trackConfigs = tracks
-        .filter(t => t.type === 'audio')
+        .filter(t => t.type === 'audio' && t.recEnabled !== false)
         .map(t => ({ trackId: t.id, audioSource: t.audioSource || 'local' }));
       
       startRecording(trackConfigs);

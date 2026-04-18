@@ -99,7 +99,16 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     });
 
     peer.on('call', (call) => {
-      call.answer();
+      // Quando riceviamo una chiamata, rispondiamo con il nostro stream audio
+      // per permettere la comunicazione bidirezionale
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        localStreamRef.current = stream;
+        call.answer(stream);
+      }).catch(() => {
+        // Se non riusciamo ad ottenere il microfono, rispondiamo comunque
+        call.answer();
+      });
+      
       call.on('stream', (remote) => {
         setRemoteStream(remote);
       });
@@ -126,18 +135,25 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
   }, [connection, isConnected]);
 
   const startTalkback = useCallback(async () => {
-    if (!peerRef.current || role === 'guest') return;
+    if (!peerRef.current) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
       if (connection) {
+        // Chiama l'altro peer e invia il proprio stream
         const call = peerRef.current.call(connection.peer, stream);
         callRef.current = call;
+        
+        // Se siamo l'host (director), riceviamo anche lo stream remoto dall'actor
+        // quando l'actor risponde
+        call.on('stream', (remote) => {
+          setRemoteStream(remote);
+        });
       }
     } catch (err) {
       console.error("Talkback error:", err);
     }
-  }, [role, connection]);
+  }, [connection]);
 
   const stopTalkback = useCallback(() => {
     if (callRef.current) {
