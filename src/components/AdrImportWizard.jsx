@@ -228,7 +228,7 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
               row: rowNum,
               field: 'timeOut',
               value: timeOutValue,
-              message: `Timecode fine non valido: "${timeOutValue}"`
+              message: `Timecode fine non valido: "${timeOutValue ?? ''}"`
             });
             return;
           }
@@ -239,7 +239,7 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
               row: rowNum,
               field: 'timeOut',
               value: timeOutValue,
-              message: `Timecode fine deve essere dopo il timecode inizio`
+              message: `Timecode fine (${timeOutValue ?? ''}) deve essere dopo il timecode inizio (${timeInValue ?? ''})`
             });
             return;
           }
@@ -555,8 +555,8 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="wizard-modal" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="wizard-modal">
         <div className="wizard-header">
           <div className="wizard-title">
             <FileType size={24} />
