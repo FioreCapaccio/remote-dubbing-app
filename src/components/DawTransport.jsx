@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Play, Pause, Square, ZoomIn, ZoomOut, Save, FolderOpen, FilePlus } from 'lucide-react';
+import { Play, Pause, Square, ZoomIn, ZoomOut, Save, FolderOpen, FilePlus, FileSpreadsheet } from 'lucide-react';
+import AdrImportWizard from './AdrImportWizard';
 
 const toSMPTE = (t) => {
   const safe = isFinite(t) && t >= 0 ? t : 0;
@@ -18,8 +19,10 @@ const DawTransport = ({
   zoomLevel, setZoomLevel,
   onSaveProject,
   onLoadProject,
-  onNewProject
+  onNewProject,
+  onImportCues
 }) => {
+  const [showImportWizard, setShowImportWizard] = useState(false);
   const tc      = toSMPTE(currentTime);
   const totalTc = toSMPTE(duration || 0);
 
@@ -77,6 +80,14 @@ const DawTransport = ({
             <FolderOpen size={16} />
             <span className="btn-label">LOAD</span>
           </button>
+          <button
+            onClick={() => setShowImportWizard(true)}
+            className="btn-transport btn-project btn-import-adr"
+            title="Import ADR from Excel"
+          >
+            <FileSpreadsheet size={16} />
+            <span className="btn-label">IMPORT ADR</span>
+          </button>
         </div>
       </div>
 
@@ -111,6 +122,12 @@ const DawTransport = ({
           </span>
         </div>
       </div>
+
+      <AdrImportWizard 
+        isOpen={showImportWizard}
+        onClose={() => setShowImportWizard(false)}
+        onImportCues={onImportCues}
+      />
 
     </header>
   );

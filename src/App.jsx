@@ -184,6 +184,12 @@ const App = () => {
     if (sendCommandRef.current) sendCommandRef.current({ type: 'CUE_SYNC', cues: newCues });
   }, [cues]);
 
+  const handleImportCues = useCallback((newCues) => {
+    const mergedCues = [...cues, ...newCues].sort((a, b) => a.timeIn - b.timeIn);
+    setCues(mergedCues);
+    if (sendCommandRef.current) sendCommandRef.current({ type: 'CUE_SYNC', cues: mergedCues });
+  }, [cues]);
+
   const handlePrevCue = useCallback(() => {
     const ct = videoRef.current?.currentTime ?? internalTimeRef.current;
     const prev = [...cues].sort((a, b) => a.timeIn - b.timeIn).reverse().find(c => c.timeIn < ct - 0.1);
@@ -708,6 +714,7 @@ const App = () => {
             onSaveProject={handleSaveProject}
             onLoadProject={handleLoadProjectClick}
             onNewProject={handleNewProject}
+            onImportCues={handleImportCues}
           />
           <VideoPreview 
             videoHeight={videoHeight} videoURL={videoURL} videoRef={videoRef}

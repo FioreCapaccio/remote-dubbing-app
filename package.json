@@ -14,7 +14,8 @@
     "peerjs": "^1.5.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "wavesurfer.js": "^7.12.6"
+    "wavesurfer.js": "^7.12.6",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
