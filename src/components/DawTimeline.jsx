@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import WaveformOverlay from './WaveformOverlay';
 
@@ -15,8 +15,18 @@ const DawTimeline = ({
   tracks, setTracks, selectedTrackId, setSelectedTrackId,
   selectedClipId, setSelectedClipId,
   draggingClip, setDraggingClip, dragStartRef,
-  videoURL, currentTime, activeCue
+  videoURL, currentTime, activeCue,
+  internalTimeRef
 }) => {
+  const [contextMenu, setContextMenu] = useState(null); // { clipId, trackId, x, y }
+
+  // Close context menu when clicking elsewhere
+  useEffect(() => {
+    const close = () => setContextMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, []);
+
   const updateTrack = (id, field, value) => {
     setTracks(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t));
   };
@@ -33,6 +43,32 @@ const DawTimeline = ({
     }]);
   };
 
+  const handleSplitClip = (trackId, clip) => {
+    const splitPoint = currentTime;
+    if (splitPoint <= clip.startTime + 0.01 || splitPoint >= clip.startTime + clip.duration - 0.01) {
+      setContextMenu(null);
+      return;
+    }
+    const firstDuration = splitPoint - clip.startTime;
+    const secondDuration = clip.duration - firstDuration;
+    setTracks(prev => prev.map(t => {
+      if (t.id !== trackId) return t;
+      const idx = t.clips.findIndex(c => c.id === clip.id);
+      if (idx === -1) return t;
+      const newClips = [...t.clips];
+      newClips.splice(idx, 1,
+        { ...clip, duration: firstDuration },
+        { ...clip, id: `${clip.id}-s${Date.now()}`, startTime: splitPoint, duration: secondDuration, mediaOffset: (clip.mediaOffset || 0) + firstDuration }
+      );
+      return { ...t, clips: newClips };
+    }));
+    setContextMenu(null);
+  };
+
+  // Resolve context menu clip/track from current state
+  const ctxTrack = contextMenu ? tracks.find(t => t.id === contextMenu.trackId) : null;
+  const ctxClip  = ctxTrack ? ctxTrack.clips.find(c => c.id === contextMenu.clipId) : null;
+
   return (
     <section 
       className={`timeline-daw-integrated ${isDraggingOver ? 'drag-over' : ''}`}
@@ -47,12 +83,13 @@ const DawTimeline = ({
         const timeline = e.currentTarget;
         const rect = timeline.getBoundingClientRect();
         const trackX = e.clientX - rect.left + timeline.scrollLeft - sidebarWidth;
-        const newTime = Math.max(0, Math.min(trackX / zoomLevel, Math.max(0, duration)));
+        const maxTime = Math.max(duration > 0 ? duration : 0, 0);
+        const newTime = Math.max(0, trackX / zoomLevel);
+        const clampedTime = maxTime > 0 ? Math.min(newTime, maxTime) : newTime;
         
-        if (videoRef.current) {
-           videoRef.current.currentTime = newTime;
-           setCurrentTime(newTime);
-        }
+        if (videoRef.current) videoRef.current.currentTime = clampedTime;
+        if (internalTimeRef) internalTimeRef.current = clampedTime;
+        setCurrentTime(clampedTime);
       }}
     >
       <div 
@@ -62,12 +99,12 @@ const DawTimeline = ({
            e.stopPropagation();
            const timelineRect = e.currentTarget.getBoundingClientRect();
            const relativeX = e.clientX - timelineRect.left;
-           const newTime = Math.max(0, Math.min(relativeX / zoomLevel, duration));
-           if (videoRef.current) {
-              videoRef.current.currentTime = newTime;
-              setCurrentTime(newTime);
-           }
-           onAddCue(newTime);
+           const newTime = Math.max(0, relativeX / zoomLevel);
+           const clampedTime = duration > 0 ? Math.min(newTime, duration) : newTime;
+           if (videoRef.current) videoRef.current.currentTime = clampedTime;
+           if (internalTimeRef) internalTimeRef.current = clampedTime;
+           setCurrentTime(clampedTime);
+           onAddCue(clampedTime);
         }}
       >
         {Array.from({ length: Math.ceil((duration || 0) / 5) + 4 }).map((_, i) => {
@@ -93,7 +130,7 @@ const DawTimeline = ({
               className={`timeline-cue-pin${isActive ? ' timeline-cue-pin--active' : ''}`}
               style={{ left: `${cue.timeIn * zoomLevel}px` }}
             >
-              <div className="cue-pin-flag" style={{ background: color, color: cue.status === 'done' ? '#000' : '#000' }}>
+              <div className="cue-pin-flag" style={{ background: color, color: '#000' }}>
                 #{idx + 1}{cue.character ? ` ${cue.character}` : ''}
               </div>
               <div className="cue-pin-line" style={{ background: color }} />
@@ -111,7 +148,13 @@ const DawTimeline = ({
                 <button className={track.muted ? 'm-on' : ''} onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'muted', !track.muted); }}>M</button>
                 <button className={track.solo ? 's-on' : ''} onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'solo', !track.solo); }}>S</button>
               </div>
-              <input type="range" min="0" max="1" step="0.01" value={track.volume} onChange={(e) => updateTrack(track.id, 'volume', parseFloat(e.target.value))} onClick={e => e.stopPropagation()} />
+              <input
+                type="range" min="0" max="1" step="0.01"
+                value={track.volume}
+                onChange={(e) => { e.stopPropagation(); updateTrack(track.id, 'volume', parseFloat(e.target.value)); }}
+                onMouseDown={e => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
+              />
             </div>
             <div className="track-lane-cell">
               {track.type === 'video' && videoURL && duration > 0 && (
@@ -140,8 +183,18 @@ const DawTimeline = ({
                           clipStartTime: clip.startTime 
                        };
                     }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setContextMenu({ clipId: clip.id, trackId: track.id, x: e.clientX, y: e.clientY });
+                    }}
                   >
-                    <div className="clip-label">{clip.id.slice(-4)}</div>
+                    <div className="clip-label">
+                      {clip.id.slice(-4)}
+                      {clip.gain != null && clip.gain !== 1 && (
+                        <span className="clip-gain-badge">{Math.round(clip.gain * 100)}%</span>
+                      )}
+                    </div>
                     <audio id={clip.id} src={clip.url} preload="auto" style={{ display: 'none' }} />
                     <WaveformOverlay url={clip.url} mini color="var(--accent)" height={90} pxPerSec={zoomLevel} />
                   </div>
@@ -159,6 +212,44 @@ const DawTimeline = ({
           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); isScrubbingRef.current = true; }} 
         />
       </div>
+
+      {/* Clip Context Menu */}
+      {contextMenu && ctxClip && (
+        <div
+          className="clip-context-menu"
+          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="context-menu-header">CLIP SETTINGS</div>
+          <div className="context-menu-item">
+            <label>GAIN: {Math.round((ctxClip.gain ?? 1) * 100)}%</label>
+            <input
+              type="range" min="0" max="1.5" step="0.01"
+              value={ctxClip.gain ?? 1}
+              onChange={(e) => {
+                const g = parseFloat(e.target.value);
+                setTracks(prev => prev.map(t => t.id === contextMenu.trackId ? {
+                  ...t,
+                  clips: t.clips.map(c => c.id === contextMenu.clipId ? { ...c, gain: g } : c)
+                } : t));
+              }}
+              onMouseDown={e => e.stopPropagation()}
+            />
+          </div>
+          <button
+            className="context-menu-btn"
+            onClick={() => handleSplitClip(contextMenu.trackId, ctxClip)}
+          >
+            SPLIT AT PLAYHEAD
+          </button>
+          <button
+            className="context-menu-btn context-menu-btn--close"
+            onClick={() => setContextMenu(null)}
+          >
+            CLOSE
+          </button>
+        </div>
+      )}
     </section>
   );
 };

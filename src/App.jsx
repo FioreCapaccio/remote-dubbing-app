@@ -50,12 +50,14 @@ const App = () => {
   const [draggingClip, setDraggingClip] = useState(null);
   const dragStartRef = useRef(null);
 
-  // Cue List (structured ADR scripting)
-  // Each cue: { id, timeIn, timeOut, character, text, status: 'todo'|'recording'|'done' }
+  // Internal playhead timer (used when no video is loaded)
+  const playheadTimerRef = useRef(null);
+  const internalTimeRef = useRef(0); // always-current playhead position
+
+  // Cue List
   const [cues, setCues] = useState([]);
 
   // Chat State
-  // Each message: { id, sender: 'director'|'actor', text, timestamp }
   const [chatMessages, setChatMessages] = useState([]);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
@@ -69,7 +71,7 @@ const App = () => {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   // Countdown State
-  const [countdown, setCountdown] = useState(null); // null | 3 | 2 | 1
+  const [countdown, setCountdown] = useState(null);
   const countdownIntervalRef = useRef(null);
 
   const videoRef = useRef(null);
@@ -85,6 +87,31 @@ const App = () => {
   // Sync Logic
   const recordStartTime = useRef(0);
   const lastProcessedTake = useRef(null);
+
+  // Keep internalTimeRef in sync with currentTime state (for when the timer is not running)
+  useEffect(() => {
+    internalTimeRef.current = currentTime;
+  }, [currentTime]);
+
+  // ── Internal Playhead Timer (no-video mode) ────────────────────────────────
+  const startInternalPlayhead = useCallback((fromTime) => {
+    if (playheadTimerRef.current) clearInterval(playheadTimerRef.current);
+    const startTs = Date.now();
+    const base = fromTime;
+    internalTimeRef.current = base;
+    playheadTimerRef.current = setInterval(() => {
+      const t = base + (Date.now() - startTs) / 1000;
+      internalTimeRef.current = t;
+      setCurrentTime(t);
+    }, 100); // ~10fps updates for UI
+  }, []);
+
+  const stopInternalPlayhead = useCallback(() => {
+    if (playheadTimerRef.current) {
+      clearInterval(playheadTimerRef.current);
+      playheadTimerRef.current = null;
+    }
+  }, []);
 
   // ── Countdown helpers ──────────────────────────────────────────────────────
   const cancelCountdown = useCallback(() => {
@@ -114,7 +141,7 @@ const App = () => {
 
   // ── Cue List Handlers ──────────────────────────────────────────────────────
   const handleAddCue = useCallback((time) => {
-    const actualTime = time ?? (videoRef.current?.currentTime ?? 0);
+    const actualTime = time ?? (videoRef.current?.currentTime ?? internalTimeRef.current);
     const newCue = {
       id: Date.now(),
       timeIn: actualTime,
@@ -142,24 +169,26 @@ const App = () => {
   }, [cues]);
 
   const handlePrevCue = useCallback(() => {
-    const ct = videoRef.current?.currentTime ?? currentTime;
+    const ct = videoRef.current?.currentTime ?? internalTimeRef.current;
     const prev = [...cues].sort((a, b) => a.timeIn - b.timeIn).reverse().find(c => c.timeIn < ct - 0.1);
-    if (prev && videoRef.current) {
-      videoRef.current.currentTime = prev.timeIn;
+    if (prev) {
+      if (videoRef.current) videoRef.current.currentTime = prev.timeIn;
+      internalTimeRef.current = prev.timeIn;
       setCurrentTime(prev.timeIn);
       if (sendCommandRef.current) sendCommandRef.current({ type: 'SEEK', time: prev.timeIn });
     }
-  }, [cues, currentTime]);
+  }, [cues]);
 
   const handleNextCue = useCallback(() => {
-    const ct = videoRef.current?.currentTime ?? currentTime;
+    const ct = videoRef.current?.currentTime ?? internalTimeRef.current;
     const next = [...cues].sort((a, b) => a.timeIn - b.timeIn).find(c => c.timeIn > ct + 0.1);
-    if (next && videoRef.current) {
-      videoRef.current.currentTime = next.timeIn;
+    if (next) {
+      if (videoRef.current) videoRef.current.currentTime = next.timeIn;
+      internalTimeRef.current = next.timeIn;
       setCurrentTime(next.timeIn);
       if (sendCommandRef.current) sendCommandRef.current({ type: 'SEEK', time: next.timeIn });
     }
-  }, [cues, currentTime]);
+  }, [cues]);
 
   // ── Chat Handlers ──────────────────────────────────────────────────────────
   const handleSendChat = useCallback((text) => {
@@ -192,13 +221,23 @@ const App = () => {
       if (isPlaying) { videoRef.current.pause(); if (sendCommandRef.current) sendCommandRef.current({ type: 'PAUSE' }); }
       else { videoRef.current.play(); if (sendCommandRef.current) sendCommandRef.current({ type: 'PLAY' }); }
       setIsPlaying(!isPlaying);
+    } else {
+      // No video loaded: use internal timer
+      if (isPlaying) {
+        stopInternalPlayhead();
+        setIsPlaying(false);
+      } else {
+        startInternalPlayhead(internalTimeRef.current);
+        setIsPlaying(true);
+      }
     }
-  }, [isPlaying]);
+  }, [isPlaying, startInternalPlayhead, stopInternalPlayhead]);
 
   const handleStartProcess = useCallback(() => {
     if (isRecording) {
       stopRecording();
       if (videoRef.current) videoRef.current.pause();
+      else stopInternalPlayhead();
       setIsPlaying(false);
       if (sendCommandRef.current) sendCommandRef.current({ type: 'PAUSE' });
       return;
@@ -210,37 +249,48 @@ const App = () => {
     }
     if (sendCommandRef.current) sendCommandRef.current({ type: 'COUNTDOWN_START' });
     startCountdownDisplay(() => {
-      recordStartTime.current = videoRef.current ? videoRef.current.currentTime : 0;
+      const startTime = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
+      recordStartTime.current = startTime;
       startRecording();
-      requestAnimationFrame(() => {
-        if (videoRef.current) {
+      if (videoRef.current) {
+        requestAnimationFrame(() => {
           videoRef.current.play().catch(() => {});
           setIsPlaying(true);
           if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
-        }
-      });
+        });
+      } else {
+        // No video: advance playhead via internal timer
+        startInternalPlayhead(startTime);
+        setIsPlaying(true);
+        if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
+      }
     });
-  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording]);
+  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead]);
 
   const handleRemoteCommand = useCallback((cmd) => {
     switch (cmd.type) {
       case 'PLAY':
-        videoRef.current?.play();
+        if (videoRef.current) { videoRef.current.play(); }
+        else { startInternalPlayhead(internalTimeRef.current); }
         setIsPlaying(true);
         break;
       case 'PAUSE':
-        videoRef.current?.pause();
+        if (videoRef.current) { videoRef.current.pause(); }
+        else { stopInternalPlayhead(); }
         setIsPlaying(false);
         break;
       case 'REC_START':
-        recordStartTime.current = videoRef.current ? videoRef.current.currentTime : 0;
+        recordStartTime.current = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
         startRecording();
-        requestAnimationFrame(() => {
-          if (videoRef.current) {
+        if (videoRef.current) {
+          requestAnimationFrame(() => {
             videoRef.current.play().catch(() => {});
             setIsPlaying(true);
-          }
-        });
+          });
+        } else {
+          startInternalPlayhead(recordStartTime.current);
+          setIsPlaying(true);
+        }
         break;
       case 'COUNTDOWN_START':
         startCountdownDisplay(null);
@@ -249,10 +299,9 @@ const App = () => {
         cancelCountdown();
         break;
       case 'SEEK': 
-        if (videoRef.current) {
-          videoRef.current.currentTime = cmd.time;
-          setCurrentTime(cmd.time);
-        }
+        if (videoRef.current) videoRef.current.currentTime = cmd.time;
+        internalTimeRef.current = cmd.time;
+        setCurrentTime(cmd.time);
         break;
       case 'CUE_SYNC':
         if (Array.isArray(cmd.cues)) setCues(cmd.cues);
@@ -263,7 +312,7 @@ const App = () => {
         break;
       default: break;
     }
-  }, [startRecording, startCountdownDisplay, cancelCountdown]);
+  }, [startRecording, startCountdownDisplay, cancelCountdown, startInternalPlayhead, stopInternalPlayhead]);
 
   const { peerId, isConnected, connectionStatus, sendCommand, remoteStream, startTalkback, stopTalkback } = usePeerSession(roomName, sessionRole, handleRemoteCommand);
 
@@ -271,17 +320,21 @@ const App = () => {
     sendCommandRef.current = sendCommand;
   }, [sendCommand]);
 
-  // Sync Engine & Layout Listeners
+  // ── Sync Engine ────────────────────────────────────────────────────────────
+  // Runs on every animation frame during playback to sync all audio clips.
+  // Uses internalTimeRef so it doesn't restart when currentTime state changes.
   useEffect(() => {
     let animationId;
+    const hasSolo = tracks.some(t => t.solo && t.type !== 'video');
     const syncEngine = () => {
-      const exactTime = videoRef.current ? videoRef.current.currentTime : currentTime;
+      const exactTime = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
       tracks.forEach(track => {
         if (track.type === 'video') return;
+        const effectiveMuted = track.muted || (hasSolo && !track.solo);
         track.clips.forEach(clip => {
           const audioEl = document.getElementById(clip.id);
           if (!audioEl) return;
-          audioEl.volume = track.muted ? 0 : Math.max(0, Math.min(1, track.volume));
+          audioEl.volume = effectiveMuted ? 0 : Math.max(0, Math.min(1, track.volume * (clip.gain ?? 1)));
           const clipEnd = clip.startTime + clip.duration;
           if (isPlaying && exactTime >= clip.startTime && exactTime <= clipEnd) {
             const expectedTime = (exactTime - clip.startTime) + (clip.mediaOffset || 0);
@@ -305,18 +358,36 @@ const App = () => {
       }));
     }
     return () => cancelAnimationFrame(animationId);
-  }, [isPlaying, tracks, currentTime]);
+  }, [isPlaying, tracks]);
 
+  // Apply volume / mute / solo / gain immediately on track state changes (works even when paused)
+  useEffect(() => {
+    const hasSolo = tracks.some(t => t.solo && t.type !== 'video');
+    tracks.forEach(track => {
+      if (track.type === 'video') return;
+      const effectiveMuted = track.muted || (hasSolo && !track.solo);
+      track.clips.forEach(clip => {
+        const el = document.getElementById(clip.id);
+        if (!el) return;
+        el.volume = effectiveMuted ? 0 : Math.max(0, Math.min(1, track.volume * (clip.gain ?? 1)));
+      });
+    });
+  }, [tracks]);
+
+  // ── Layout & Drag Listeners ────────────────────────────────────────────────
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (isResizingHorizontal.current) setSidebarWidth(Math.max(240, Math.min(e.clientX, 520)));
       if (isResizingVertical.current) setVideoHeight(Math.max(150, Math.min(e.clientY - 120, window.innerHeight - 300)));
-      if (isScrubbingRef.current && duration > 0) {
+      if (isScrubbingRef.current) {
         const timeline = document.querySelector('.timeline-daw-integrated');
         if (timeline) {
           const rect = timeline.getBoundingClientRect();
-          const newTime = Math.max(0, Math.min((e.clientX - rect.left + timeline.scrollLeft - sidebarWidth) / zoomLevel, duration));
-          if (videoRef.current) { videoRef.current.currentTime = newTime; setCurrentTime(newTime); }
+          const maxTime = duration > 0 ? duration : 600;
+          const newTime = Math.max(0, Math.min((e.clientX - rect.left + timeline.scrollLeft - sidebarWidth) / zoomLevel, maxTime));
+          if (videoRef.current) videoRef.current.currentTime = newTime;
+          internalTimeRef.current = newTime;
+          setCurrentTime(newTime);
         }
       }
       if (dragStartRef.current?.clipId) {
@@ -337,6 +408,7 @@ const App = () => {
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
   }, [duration, zoomLevel, sidebarWidth]);
 
+  // ── Keyboard Shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -346,40 +418,80 @@ const App = () => {
         return;
       }
       if (e.key === ' ') { e.preventDefault(); handleTogglePlay(); }
-      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && videoRef.current && duration > 0) {
-        let newTime = Math.max(0, Math.min(videoRef.current.currentTime + (e.key === 'ArrowRight' ? 0.5 : -0.5), duration));
-        videoRef.current.currentTime = newTime; setCurrentTime(newTime);
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const step = e.key === 'ArrowRight' ? 0.5 : -0.5;
+        const newTime = Math.max(0, (videoRef.current?.currentTime ?? internalTimeRef.current) + step);
+        if (videoRef.current) videoRef.current.currentTime = newTime;
+        internalTimeRef.current = newTime;
+        setCurrentTime(newTime);
         if (sendCommandRef.current) sendCommandRef.current({ type: 'SEEK', time: newTime });
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipId) {
         setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.filter(c => c.id !== selectedClipId) })));
         setSelectedClipId(null);
       }
+      // Split clip at playhead (S or Ctrl+K)
+      if ((e.key === 's' || (e.ctrlKey && e.key === 'k')) && selectedClipId) {
+        e.preventDefault();
+        setTracks(prev => {
+          let found = false;
+          return prev.map(track => {
+            if (found) return track;
+            const clipIdx = track.clips.findIndex(c => c.id === selectedClipId);
+            if (clipIdx === -1) return track;
+            const clip = track.clips[clipIdx];
+            const splitPoint = currentTime;
+            if (splitPoint <= clip.startTime + 0.01 || splitPoint >= clip.startTime + clip.duration - 0.01) return track;
+            const firstDuration = splitPoint - clip.startTime;
+            const secondDuration = clip.duration - firstDuration;
+            const newClips = [...track.clips];
+            newClips.splice(clipIdx, 1,
+              { ...clip, duration: firstDuration },
+              { ...clip, id: `${clip.id}-s${Date.now()}`, startTime: splitPoint, duration: secondDuration, mediaOffset: (clip.mediaOffset || 0) + firstDuration }
+            );
+            found = true;
+            return { ...track, clips: newClips };
+          });
+        });
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [duration, handleTogglePlay, selectedClipId, countdown, cancelCountdown]);
+  }, [handleTogglePlay, selectedClipId, countdown, cancelCountdown, currentTime]);
 
+  // ── Process Recorded Takes ─────────────────────────────────────────────────
   useEffect(() => {
     if (takes.length > 0 && takes[0].id !== lastProcessedTake.current) {
       const take = takes[0]; lastProcessedTake.current = take.id;
-      const tDuration = currentTime - recordStartTime.current;
+      // Use internalTimeRef for accurate duration even without video
+      const tDuration = internalTimeRef.current - recordStartTime.current;
       setTracks(prev => prev.map(t => t.id === selectedTrackId ? {
-        ...t, clips: [...t.clips, { id: `clip-${take.id}`, url: take.url, startTime: recordStartTime.current, duration: tDuration > 0 ? tDuration : 2 }]
+        ...t, clips: [...t.clips, {
+          id: `clip-${take.id}`,
+          url: take.url,
+          startTime: recordStartTime.current,
+          duration: tDuration > 0 ? tDuration : 2,
+          gain: 1
+        }]
       } : t));
     }
-  }, [takes, selectedTrackId, currentTime]);
+  }, [takes, selectedTrackId]);
 
+  // ── Export Mixdown ─────────────────────────────────────────────────────────
   const handleExportMixdown = async () => {
-    if (duration <= 0 || isExporting) return;
+    // Compute effective duration from clips if no video is loaded
+    const effectiveDuration = duration > 0 ? duration :
+      tracks.reduce((max, t) => t.clips.reduce((m, c) => Math.max(m, c.startTime + c.duration), max), 0);
+    if (effectiveDuration <= 0 || isExporting) return;
     try {
       setIsExporting(true);
-      const blob = await renderMixdown(tracks, duration, videoURL, audioSettings);
+      const blob = await renderMixdown(tracks, effectiveDuration, videoURL, audioSettings);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `VocalSync_Mixdown_${Date.now()}.wav`; a.click();
     } catch { alert("Export error"); } finally { setIsExporting(false); }
   };
 
+  // ── Audio File Drop ────────────────────────────────────────────────────────
   const handleDrop = async (e) => {
     e.preventDefault(); setIsDraggingOver(false);
     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('audio/'));
@@ -390,7 +502,7 @@ const App = () => {
       await new Promise(r => { audio.onloadedmetadata = r; audio.onerror = r; });
       setTracks(prev => [...prev, {
         id: `dropped-${Date.now()}`, name: f.name.toUpperCase(), volume: 1, muted: false, solo: false, type: 'audio',
-        clips: [{ id: `clip-${Date.now()}`, url, startTime: dropTime, duration: audio.duration || 5 }]
+        clips: [{ id: `clip-${Date.now()}`, url, startTime: dropTime, duration: audio.duration || 5, gain: 1 }]
       }]);
     }
   };
@@ -461,6 +573,7 @@ const App = () => {
             draggingClip={draggingClip} setDraggingClip={setDraggingClip} dragStartRef={dragStartRef}
             videoURL={videoURL} currentTime={currentTime}
             activeCue={activeCue}
+            internalTimeRef={internalTimeRef}
           />
         </main>
         <audio ref={remoteAudioRef} style={{ display: 'none' }} />

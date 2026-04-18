@@ -8,30 +8,14 @@ export async function renderMixdown(tracks, totalDuration, videoURL, settings = 
   const sampleRate = settings.sampleRate;
   const offlineCtx = new OfflineAudioContext(2, Math.max(1, sampleRate * totalDuration), sampleRate);
 
-  // 1. Process Video/Original Track
-  const videoTrack = tracks.find(t => t.id === 'video');
-  if (videoTrack && !videoTrack.muted) {
-    try {
-      const response = await fetch(videoURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const videoBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
-      
-      const source = offlineCtx.createBufferSource();
-      source.buffer = videoBuffer;
-      const gain = offlineCtx.createGain();
-      gain.gain.value = videoTrack.volume;
-      source.connect(gain);
-      gain.connect(offlineCtx.destination);
-      source.start(0);
-    } catch (err) {
-      console.warn("Could not include original video audio in mixdown:", err);
-    }
-  }
-
-  // 2. Process Audio Tracks
+  // Process Audio Tracks only — the video/original track (type === 'video') is intentionally excluded
   for (const track of tracks) {
     if (track.type === 'video' || track.muted) continue;
-    
+
+    // Compute solo: if any non-video track is soloed, skip non-soloed tracks
+    const hasSolo = tracks.some(t => t.solo && t.type !== 'video');
+    if (hasSolo && !track.solo) continue;
+
     for (const clip of track.clips) {
       try {
         const response = await fetch(clip.url);
@@ -41,7 +25,7 @@ export async function renderMixdown(tracks, totalDuration, videoURL, settings = 
         const source = offlineCtx.createBufferSource();
         source.buffer = clipBuffer;
         const gain = offlineCtx.createGain();
-        gain.gain.value = track.volume;
+        gain.gain.value = Math.max(0, Math.min(1, track.volume * (clip.gain ?? 1)));
         source.connect(gain);
         gain.connect(offlineCtx.destination);
         
@@ -52,10 +36,10 @@ export async function renderMixdown(tracks, totalDuration, videoURL, settings = 
     }
   }
 
-  // 3. Render
+  // Render
   const renderedBuffer = await offlineCtx.startRendering();
 
-  // 4. Encode to WAV with Bit-Depth Selection
+  // Encode to WAV with Bit-Depth Selection
   const wavBlob = bufferToWav(renderedBuffer, settings.bitDepth);
   return wavBlob;
 }

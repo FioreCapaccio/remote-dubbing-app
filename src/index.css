@@ -1225,3 +1225,75 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 
 .chat-send-btn:hover:not(:disabled) { background: rgba(0,251,130,0.25); }
 .chat-send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── Clip Context Menu ────────────────────────────────────────────────────── */
+.clip-context-menu {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 190px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.85);
+  z-index: 9999;
+  user-select: none;
+}
+
+.context-menu-header {
+  font-size: 0.58rem;
+  font-weight: 900;
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.context-menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.context-menu-item label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+}
+
+.context-menu-item input[type=range] {
+  width: 100%;
+  cursor: ew-resize;
+  accent-color: var(--accent);
+}
+
+.context-menu-btn {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.15s;
+  letter-spacing: 0.05em;
+  display: block;
+}
+
+.context-menu-btn:hover { background: rgba(255,255,255,0.14); }
+.context-menu-btn--close { color: var(--text-muted); margin-top: 2px; }
+
+/* Clip gain badge */
+.clip-gain-badge {
+  margin-left: 5px;
+  font-size: 0.5rem;
+  background: rgba(0,251,130,0.25);
+  color: var(--accent);
+  border-radius: 3px;
+  padding: 0 3px;
+  vertical-align: middle;
+}
