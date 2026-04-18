@@ -1,5 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
+/**
+ * Hook semplificato per la registrazione audio.
+ * Cattura solo il microfono locale del doppiatore.
+ */
 export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream = null) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioURL, setAudioURL] = useState(null);
@@ -17,9 +21,8 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
   const animationFrameRef = useRef(null);
   const micStreamRef = useRef(null);
   const peakMeterCallbackRef = useRef(null);
-  const mixedStreamRef = useRef(null);
-  const remoteStreamRef = useRef(null);
 
+  // Enumerazione dispositivi audio
   useEffect(() => {
     const getDevices = async () => {
       try {
@@ -35,18 +38,12 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
     navigator.mediaDevices.ondevicechange = getDevices;
   }, []);
 
-  // Effect to sync remoteStream ref when prop changes
-  useEffect(() => {
-    remoteStreamRef.current = remoteStream;
-    console.log('[AudioRecorder] remoteStream updated:', remoteStream ? 'available' : 'null');
-  }, [remoteStream]);
-
-  // VocalSync 4.0: Output Device Routing
+  // Output device routing
   const setOutputDevice = async (deviceId) => {
     setSelectedOutput(deviceId);
-    // In App.jsx we will apply this to audio elements
   };
 
+  // Peak meter update
   const updatePeakMeter = useCallback(() => {
     if (!analyserRef.current) return;
     
@@ -66,12 +63,11 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
     animationFrameRef.current = requestAnimationFrame(peakMeterCallbackRef.current);
   }, []);
 
-  // Keep the ref in sync with the latest callback (must be in an effect, not during render)
   useEffect(() => {
     peakMeterCallbackRef.current = updatePeakMeter;
   }, [updatePeakMeter]);
 
-  // VocalSync 5.0: Persistent Microphone Monitor
+  // Inizializza microfono per monitoraggio VU
   useEffect(() => {
     let active = true;
     const initMic = async () => {
@@ -84,13 +80,11 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
 
         const constraints = { audio: selectedDevice ? { deviceId: { exact: selectedDevice } } : true };
         
-        // Wait for user interaction if AudioContext is blocked, but navigator.mediaDevices works fine
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (!active) return stream.getTracks().forEach(t => t.stop());
         
         micStreamRef.current = stream;
         
-        // Dynamic Sample Rate Injection with Safety Fallback
         const contextOptions = {};
         if (settings && settings.sampleRate) {
            contextOptions.sampleRate = settings.sampleRate;
@@ -115,63 +109,19 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
     };
     initMic();
     return () => { active = false; };
-  }, [selectedDevice, updatePeakMeter, settings.sampleRate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDevice, updatePeakMeter, settings.sampleRate]);
 
-  const startRecording = useCallback((sourceType = 'mixed') => {
+  // Avvia registrazione - semplice, solo microfono locale
+  const startRecording = useCallback(() => {
     try {
       if (!micStreamRef.current) {
         alert("Microphone not ready.");
         return;
       }
       
-      console.log('[AudioRecorder] Starting recording with source:', sourceType);
-      console.log('[AudioRecorder] Local mic stream:', micStreamRef.current ? 'available' : 'null');
-      console.log('[AudioRecorder] Remote stream:', remoteStreamRef.current ? 'available' : 'null');
+      console.log('[AudioRecorder] Starting recording (local mic only)');
       
-      let streamToRecord = micStreamRef.current;
-      
-      // Se sourceType è 'remote', registra solo lo stream remoto
-      if (sourceType === 'remote' && remoteStreamRef.current) {
-        streamToRecord = remoteStreamRef.current;
-        console.log('[AudioRecorder] Recording REMOTE stream only');
-      }
-      // Se sourceType è 'local', registra solo il microfono locale (default)
-      else if (sourceType === 'local') {
-        streamToRecord = micStreamRef.current;
-        console.log('[AudioRecorder] Recording LOCAL stream only');
-      }
-      // Se sourceType è 'mixed' o non specificato, mixa entrambi
-      else if (remoteStreamRef.current && audioContextRef.current) {
-        try {
-          const ctx = audioContextRef.current;
-          const dest = ctx.createMediaStreamDestination();
-          
-          // Crea sorgente dal microfono locale
-          const localSource = ctx.createMediaStreamSource(micStreamRef.current);
-          const localGain = ctx.createGain();
-          localGain.gain.value = 1.0;
-          localSource.connect(localGain);
-          localGain.connect(dest);
-          
-          // Crea sorgente dallo stream remoto
-          const remoteSource = ctx.createMediaStreamSource(remoteStreamRef.current);
-          const remoteGain = ctx.createGain();
-          remoteGain.gain.value = 1.0;
-          remoteSource.connect(remoteGain);
-          remoteGain.connect(dest);
-          
-          streamToRecord = dest.stream;
-          mixedStreamRef.current = dest;
-          
-          console.log('[AudioRecorder] Mixed stream created with local + remote audio');
-        } catch (mixErr) {
-          console.error('[AudioRecorder] Error creating mixed stream:', mixErr);
-          // Fallback: usa solo il microfono locale
-          streamToRecord = micStreamRef.current;
-        }
-      }
-      
-      const mediaRecorder = new MediaRecorder(streamToRecord);
+      const mediaRecorder = new MediaRecorder(micStreamRef.current);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -189,13 +139,9 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
           url,
           blob: audioBlob,
           timestamp: new Date().toLocaleTimeString(),
-          sourceType: sourceType // Track which source was recorded
+          sourceType: 'local'
         };
         setTakes((prev) => [newTake, ...prev]);
-        // Do not stop the stream or generic audio context here, to keep VU meter running
-        
-        // Cleanup mixed stream if created
-        mixedStreamRef.current = null;
       };
 
       mediaRecorder.start();

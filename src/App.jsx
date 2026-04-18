@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Download, Upload, Tag, Folder } from 'lucide-react';
 
 // Hooks
-import { useMultiTrackRecorder } from './hooks/useMultiTrackRecorder';
+import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { usePeerSession } from './hooks/usePeerSession';
 
 // Components
@@ -44,7 +44,7 @@ const App = () => {
   const [sessionRole, setSessionRole] = useState('host');
   const [tracks, setTracks] = useState([
     { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
-    { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local' }
+    { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local', recEnabled: true }
   ]);
   const [selectedTrackId, setSelectedTrackId] = useState('track-1');
   const [selectedClipId, setSelectedClipId] = useState(null);
@@ -106,7 +106,7 @@ const App = () => {
   const { 
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
     selectedOutput, setOutputDevice, peakLevel, startRecording, stopRecording 
-  } = useMultiTrackRecorder(audioSettings, remoteStream);
+  } = useAudioRecorder(audioSettings, remoteStream);
 
   // Sync recording functions to refs for handleRemoteCommand
   useEffect(() => {
@@ -319,24 +319,20 @@ const App = () => {
       const startTime = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
       recordStartTime.current = startTime;
       
-      // Prepara le configurazioni delle tracce per la registrazione multi-traccia
-      // Filtra solo le tracce audio con REC abilitato
-      const trackConfigs = tracks
-        .filter(t => t.type === 'audio' && t.recEnabled !== false)
-        .map(t => ({ trackId: t.id, audioSource: t.audioSource || 'local' }));
+      // Avvia registrazione semplice - solo microfono locale
+      startRecording();
       
-      startRecording(trackConfigs);
       if (videoRef.current) {
         requestAnimationFrame(() => {
           videoRef.current.play().catch(() => {});
           setIsPlaying(true);
-          if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START', trackConfigs });
+          if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
         });
       } else {
         // No video: advance playhead via internal timer
         startInternalPlayhead(startTime);
         setIsPlaying(true);
-        if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START', trackConfigs });
+        if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
       }
     });
   }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead, tracks]);
@@ -356,10 +352,9 @@ const App = () => {
         break;
       case 'REC_START':
         recordStartTime.current = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
-        // Usa il ref per chiamare startRecording con le configurazioni delle tracce
+        // Avvia registrazione semplice
         if (startRecordingRef.current) {
-          const remoteTrackConfigs = cmd.trackConfigs || [];
-          startRecordingRef.current(remoteTrackConfigs);
+          startRecordingRef.current();
         }
         if (videoRef.current) {
           requestAnimationFrame(() => {
@@ -475,7 +470,7 @@ const App = () => {
       setCues([]);
       setTracks([
         { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
-        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local' }
+        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local', recEnabled: true }
       ]);
       setSelectedTrackId('track-1');
       setSelectedClipId(null);
@@ -598,7 +593,7 @@ const App = () => {
       setCues(project.cues || []);
       setTracks(project.tracks || [
         { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
-        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local' }
+        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local', recEnabled: true }
       ]);
       setAudioSettings(project.audioSettings || { sampleRate: 48000, bitDepth: 24, format: 'wav' });
       setVideoFileName(project.videoFileName || null);
