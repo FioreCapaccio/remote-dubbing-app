@@ -87,6 +87,8 @@ const App = () => {
   const [exportFilename, setExportFilename] = useState('');
   const [exportDirectoryHandle, setExportDirectoryHandle] = useState(null);
   const [exportDirectoryName, setExportDirectoryName] = useState('');
+  const [saveDirectoryHandle, setSaveDirectoryHandle] = useState(null);
+  const [saveDirectoryName, setSaveDirectoryName] = useState('');
 
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -510,6 +512,8 @@ const App = () => {
     setProjectName(videoFileName ? videoFileName.replace(/\.[^/.]+$/, '') : 'Untitled Project');
     setProjectCategory('');
     setProjectDescription('');
+    setSaveDirectoryHandle(null);
+    setSaveDirectoryName('');
     setShowProjectModal(true);
   }, [videoFileName]);
 
@@ -531,14 +535,29 @@ const App = () => {
         category: projectCategory.trim(),
         description: projectDescription.trim()
       };
-      await saveProject(name, state, options);
+      
+      // Salva sempre in IndexedDB come backup/indice
+      const savedProject = await saveProject(name, state, options);
+      
+      // Se è stata selezionata una cartella, salva anche come file JSON
+      if (saveDirectoryHandle) {
+        const filename = `${name.replace(/[^a-zA-Z0-9_-]/g, '_')}_VocalSync.json`;
+        await exportProjectToFile(name, state, {
+          ...options,
+          filename,
+          directoryHandle: saveDirectoryHandle
+        });
+        alert(`Project "${name}" saved to folder "${saveDirectoryName}" and indexed!`);
+      } else {
+        alert(`Project "${name}" saved successfully!`);
+      }
+      
       setShowProjectModal(false);
-      alert(`Project "${name}" saved successfully!`);
     } catch (err) {
       console.error('Save failed:', err);
       alert('Failed to save project. Please try again.');
     }
-  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription]);
+  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription, saveDirectoryHandle, saveDirectoryName]);
 
   const handleExportProject = useCallback(async () => {
     const name = projectName || videoFileName?.replace(/\.[^/.]+$/, '') || 'Untitled Project';
@@ -576,6 +595,19 @@ const App = () => {
       alert('Failed to export project. Please try again.');
     }
   }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription, exportFilename, exportDirectoryHandle, exportDirectoryName]);
+
+  const handlePickSaveDirectory = useCallback(async () => {
+    try {
+      const dirHandle = await pickDirectory();
+      if (dirHandle) {
+        setSaveDirectoryHandle(dirHandle);
+        setSaveDirectoryName(dirHandle.name);
+      }
+    } catch (err) {
+      console.error('Failed to pick directory:', err);
+      alert('Failed to select directory. Please try again.');
+    }
+  }, []);
 
   const handlePickExportDirectory = useCallback(async () => {
     try {
@@ -1054,6 +1086,31 @@ const App = () => {
                     rows={3}
                   />
                 </div>
+
+                {isFileSystemAccessSupported() && (
+                  <div className="project-form-field">
+                    <label><HardDrive size={14} /> Save Location</label>
+                    <div className="directory-picker">
+                      <button 
+                        className="btn-secondary btn-pick-dir"
+                        onClick={handlePickSaveDirectory}
+                      >
+                        <Folder size={16} /> 
+                        {saveDirectoryHandle ? 'Change Folder' : 'Choose Folder'}
+                      </button>
+                      {saveDirectoryHandle && (
+                        <span className="selected-dir">
+                          <Folder size={14} /> {saveDirectoryName}
+                        </span>
+                      )}
+                    </div>
+                    <span className="field-hint">
+                      {saveDirectoryHandle 
+                        ? 'Project will be saved as JSON file in the selected folder and indexed'
+                        : 'Click "Choose Folder" to also save as a JSON file, or project will be indexed only'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="modal-actions">
