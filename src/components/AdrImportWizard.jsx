@@ -89,14 +89,14 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
       return result;
     }
     
-    // Pattern HH:MM:SS.mmm o HH:MM:SS
-    const timePattern = /^(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/;
+    // Pattern HH:MM:SS.mmm o HH:MM:SS,mmm (supporta sia punto che virgola come separatore decimale)
+    const timePattern = /^(\d{1,2}):(\d{2}):(\d{2})[.,](\d{1,3})$/;
     const timeMatch = str.match(timePattern);
     if (timeMatch) {
       const hours = parseInt(timeMatch[1], 10);
       const minutes = parseInt(timeMatch[2], 10);
       const seconds = parseInt(timeMatch[3], 10);
-      const millis = timeMatch[4] ? parseInt(timeMatch[4].padEnd(3, '0'), 10) : 0;
+      const millis = parseInt(timeMatch[4].padEnd(3, '0'), 10);
       
       if (minutes >= 60 || seconds >= 60) {
         console.log('[ADR Debug] parseTimecode: HH:MM:SS invalid range');
@@ -108,13 +108,31 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
       return result;
     }
     
-    // Pattern MM:SS.mmm o MM:SS
-    const shortPattern = /^(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?$/;
+    // Pattern HH:MM:SS (senza millisecondi)
+    const timeNoMsPattern = /^(\d{1,2}):(\d{2}):(\d{2})$/;
+    const timeNoMsMatch = str.match(timeNoMsPattern);
+    if (timeNoMsMatch) {
+      const hours = parseInt(timeNoMsMatch[1], 10);
+      const minutes = parseInt(timeNoMsMatch[2], 10);
+      const seconds = parseInt(timeNoMsMatch[3], 10);
+      
+      if (minutes >= 60 || seconds >= 60) {
+        console.log('[ADR Debug] parseTimecode: HH:MM:SS (no ms) invalid range');
+        return null;
+      }
+      
+      const result = hours * 3600 + minutes * 60 + seconds;
+      console.log('[ADR Debug] parseTimecode: HH:MM:SS (no ms) pattern matched, returning:', result);
+      return result;
+    }
+    
+    // Pattern MM:SS.mmm o MM:SS,mmm (supporta sia punto che virgola)
+    const shortPattern = /^(\d{1,2}):(\d{2})[.,](\d{1,3})$/;
     const shortMatch = str.match(shortPattern);
     if (shortMatch) {
       const minutes = parseInt(shortMatch[1], 10);
       const seconds = parseInt(shortMatch[2], 10);
-      const millis = shortMatch[3] ? parseInt(shortMatch[3].padEnd(3, '0'), 10) : 0;
+      const millis = parseInt(shortMatch[3].padEnd(3, '0'), 10);
       
       if (seconds >= 60) {
         console.log('[ADR Debug] parseTimecode: MM:SS invalid range');
@@ -123,6 +141,23 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
       
       const result = minutes * 60 + seconds + millis / 1000;
       console.log('[ADR Debug] parseTimecode: MM:SS pattern matched, returning:', result);
+      return result;
+    }
+    
+    // Pattern MM:SS (senza millisecondi)
+    const shortNoMsPattern = /^(\d{1,2}):(\d{2})$/;
+    const shortNoMsMatch = str.match(shortNoMsPattern);
+    if (shortNoMsMatch) {
+      const minutes = parseInt(shortNoMsMatch[1], 10);
+      const seconds = parseInt(shortNoMsMatch[2], 10);
+      
+      if (seconds >= 60) {
+        console.log('[ADR Debug] parseTimecode: MM:SS (no ms) invalid range');
+        return null;
+      }
+      
+      const result = minutes * 60 + seconds;
+      console.log('[ADR Debug] parseTimecode: MM:SS (no ms) pattern matched, returning:', result);
       return result;
     }
     
@@ -399,7 +434,7 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
                 <li><strong>Personaggio:</strong> Nome del personaggio (opzionale)</li>
               </ul>
               <p className="format-hint">
-                Formati timecode supportati: <code>HH:MM:SS:FF</code>, <code>HH:MM:SS.mmm</code>, <code>MM:SS</code>, o secondi
+                Formati timecode supportati: <code>HH:MM:SS:FF</code>, <code>HH:MM:SS.mmm</code>, <code>HH:MM:SS,mmm</code>, <code>MM:SS</code>, o secondi
               </p>
             </div>
           </div>
