@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Download, Upload, Tag, Folder } from 'lucide-react';
 
 // Hooks
-import { useAudioRecorder } from './hooks/useAudioRecorder';
+import { useMultiTrackRecorder } from './hooks/useMultiTrackRecorder';
 import { usePeerSession } from './hooks/usePeerSession';
 
 // Components
@@ -44,7 +44,7 @@ const App = () => {
   const [sessionRole, setSessionRole] = useState('host');
   const [tracks, setTracks] = useState([
     { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
-    { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [] }
+    { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local' }
   ]);
   const [selectedTrackId, setSelectedTrackId] = useState('track-1');
   const [selectedClipId, setSelectedClipId] = useState(null);
@@ -106,7 +106,7 @@ const App = () => {
   const { 
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
     selectedOutput, setOutputDevice, peakLevel, startRecording, stopRecording 
-  } = useAudioRecorder(audioSettings, remoteStream);
+  } = useMultiTrackRecorder(audioSettings, remoteStream);
 
   // Sync recording functions to refs for handleRemoteCommand
   useEffect(() => {
@@ -318,21 +318,27 @@ const App = () => {
     startCountdownDisplay(() => {
       const startTime = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
       recordStartTime.current = startTime;
-      startRecording();
+      
+      // Prepara le configurazioni delle tracce per la registrazione multi-traccia
+      const trackConfigs = tracks
+        .filter(t => t.type === 'audio')
+        .map(t => ({ trackId: t.id, audioSource: t.audioSource || 'local' }));
+      
+      startRecording(trackConfigs);
       if (videoRef.current) {
         requestAnimationFrame(() => {
           videoRef.current.play().catch(() => {});
           setIsPlaying(true);
-          if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
+          if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START', trackConfigs });
         });
       } else {
         // No video: advance playhead via internal timer
         startInternalPlayhead(startTime);
         setIsPlaying(true);
-        if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
+        if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START', trackConfigs });
       }
     });
-  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead]);
+  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead, tracks]);
 
   // Define handleRemoteCommand and sync to ref
   const handleRemoteCommand = useCallback((cmd) => {
@@ -349,8 +355,11 @@ const App = () => {
         break;
       case 'REC_START':
         recordStartTime.current = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
-        // Usa il ref per chiamare startRecording (può essere null se non ancora inizializzato)
-        if (startRecordingRef.current) startRecordingRef.current();
+        // Usa il ref per chiamare startRecording con le configurazioni delle tracce
+        if (startRecordingRef.current) {
+          const remoteTrackConfigs = cmd.trackConfigs || [];
+          startRecordingRef.current(remoteTrackConfigs);
+        }
         if (videoRef.current) {
           requestAnimationFrame(() => {
             videoRef.current.play().catch(() => {});
@@ -465,7 +474,7 @@ const App = () => {
       setCues([]);
       setTracks([
         { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
-        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [] }
+        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local' }
       ]);
       setSelectedTrackId('track-1');
       setSelectedClipId(null);
@@ -588,7 +597,7 @@ const App = () => {
       setCues(project.cues || []);
       setTracks(project.tracks || [
         { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
-        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [] }
+        { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], audioSource: 'local' }
       ]);
       setAudioSettings(project.audioSettings || { sampleRate: 48000, bitDepth: 24, format: 'wav' });
       setVideoFileName(project.videoFileName || null);
@@ -707,19 +716,35 @@ const App = () => {
 
   // ── Process Recorded Takes ─────────────────────────────────────────────────
   useEffect(() => {
-    if (takes.length > 0 && takes[0].id !== lastProcessedTake.current) {
-      const take = takes[0]; lastProcessedTake.current = take.id;
-      // Use internalTimeRef for accurate duration even without video
-      const tDuration = internalTimeRef.current - recordStartTime.current;
-      setTracks(prev => prev.map(t => t.id === selectedTrackId ? {
-        ...t, clips: [...t.clips, {
-          id: `clip-${take.id}`,
-          url: take.url,
-          startTime: recordStartTime.current,
-          duration: tDuration > 0 ? tDuration : 2,
-          gain: 1
-        }]
-      } : t));
+    // Processa tutti i takes non ancora processati
+    const processedIds = new Set();
+    takes.forEach(take => {
+      if (!lastProcessedTake.current || !lastProcessedTake.current.includes(take.id)) {
+        processedIds.add(take.id);
+        
+        // Use internalTimeRef for accurate duration even without video
+        const tDuration = internalTimeRef.current - recordStartTime.current;
+        
+        // Determina su quale traccia aggiungere il clip
+        // Se il take ha un trackId, usa quella traccia, altrimenti usa la traccia selezionata
+        const targetTrackId = take.trackId || selectedTrackId;
+        
+        setTracks(prev => prev.map(t => t.id === targetTrackId ? {
+          ...t, clips: [...t.clips, {
+            id: `clip-${take.id}`,
+            url: take.url,
+            startTime: recordStartTime.current,
+            duration: tDuration > 0 ? tDuration : 2,
+            gain: 1,
+            sourceType: take.sourceType || 'local'
+          }]
+        } : t));
+      }
+    });
+    
+    // Aggiorna l'ultimo take processato
+    if (processedIds.size > 0) {
+      lastProcessedTake.current = Array.from(processedIds);
     }
   }, [takes, selectedTrackId]);
 

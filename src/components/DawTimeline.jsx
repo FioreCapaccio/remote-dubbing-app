@@ -85,7 +85,8 @@ const DawTimeline = ({
       type: 'audio', 
       volume: 1, 
       muted: false, 
-      solo: false 
+      solo: false,
+      audioSource: 'local'
     }]);
   };
 
@@ -222,6 +223,18 @@ const DawTimeline = ({
           <div key={track.id} className={`track-row ${selectedTrackId === track.id ? 'active-row' : ''}`} onClick={() => track.type !== 'video' && setSelectedTrackId(track.id)}>
             <div className="track-header-cell" style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}>
               <span className="name">{track.name}</span>
+              {track.type === 'audio' && (
+                <select
+                  className="track-source-select"
+                  value={track.audioSource || 'local'}
+                  onChange={(e) => { e.stopPropagation(); updateTrack(track.id, 'audioSource', e.target.value); }}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Audio Source"
+                >
+                  <option value="local">MIC LOCALE</option>
+                  <option value="remote">MIC REMOTO</option>
+                </select>
+              )}
               <div className="row-controls">
                 <button
                   className={track.muted ? 'm-on' : ''}

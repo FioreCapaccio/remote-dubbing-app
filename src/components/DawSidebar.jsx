@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Settings2, Mic, Plus, Trash2, 
-  Activity, Download, Copy, Check, Wifi, WifiOff, Clock,
+  Settings2, Mic, Plus, Trash2, Edit2, X,
+  Activity, Download, Copy, Check as CheckIcon, Wifi, WifiOff, Clock,
   ChevronLeft, ChevronRight, Film, MessageSquare, Send, ChevronDown, ChevronUp
 } from 'lucide-react';
 import VolumeMeter from './VolumeMeter';
@@ -46,7 +46,7 @@ const ConnectionIndicator = ({ connectionStatus, peerId }) => {
         <button className="peer-id-copy" onClick={handleCopy} title="Copy Peer ID">
           <span className="peer-id-text">{peerId}</span>
           {copied
-            ? <Check size={10} className="peer-id-copy-icon peer-id-copy-icon--ok" />
+            ? <CheckIcon size={10} className="peer-id-copy-icon peer-id-copy-icon--ok" />
             : <Copy size={10} className="peer-id-copy-icon" />
           }
         </button>
@@ -131,6 +131,10 @@ const DawSidebar = ({
 
   // Per-take export state: { clipId: 'loading' | 'done' | null }
   const [exportingTake, setExportingTake] = useState({});
+
+  // Cue editing state: { cueId: { field: value } }
+  const [editingCue, setEditingCue] = useState(null);
+  const [editValues, setEditValues] = useState({});
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -260,54 +264,143 @@ const DawSidebar = ({
           {cues.map((cue, idx) => {
             const isActive  = activeCue?.id === cue.id;
             const cueClips  = tracks ? getClipsForCue(cue, idx, cues, tracks) : [];
+            const isEditing = editingCue === cue.id;
+            
+            const handleEditStart = () => {
+              setEditingCue(cue.id);
+              setEditValues({
+                character: cue.character || '',
+                text: cue.text || '',
+                timeIn: cue.timeIn || 0
+              });
+            };
+            
+            const handleEditSave = () => {
+              if (editValues.character !== cue.character) {
+                onUpdateCue(cue.id, 'character', editValues.character);
+              }
+              if (editValues.text !== cue.text) {
+                onUpdateCue(cue.id, 'text', editValues.text);
+              }
+              if (editValues.timeIn !== cue.timeIn) {
+                onUpdateCue(cue.id, 'timeIn', parseFloat(editValues.timeIn));
+              }
+              setEditingCue(null);
+              setEditValues({});
+            };
+            
+            const handleEditCancel = () => {
+              setEditingCue(null);
+              setEditValues({});
+            };
+            
+            const handleDelete = () => {
+              if (confirm('Delete this cue?')) {
+                onDeleteCue(cue.id);
+              }
+            };
+            
             return (
-              <div key={cue.id} className={`cue-item${isActive ? ' cue-item--active' : ''}`}>
+              <div key={cue.id} className={`cue-item${isActive ? ' cue-item--active' : ''}${isEditing ? ' cue-item--editing' : ''}`}>
                 <div className="cue-row-top">
                   <span className="cue-number">#{idx + 1}</span>
-                  <button
-                    className="cue-timein"
-                    onClick={() => {
-                      if (videoRef.current) {
-                        videoRef.current.currentTime = cue.timeIn;
-                        setCurrentTime(cue.timeIn);
-                      }
-                    }}
-                    title={`Go to ${fmtTime(cue.timeIn)}`}
-                  >
-                    {fmtTime(cue.timeIn)}
-                  </button>
-                  <input
-                    className="cue-character"
-                    value={cue.character}
-                    onChange={e => onUpdateCue(cue.id, 'character', e.target.value)}
-                    placeholder="CHARACTER"
-                    readOnly={!isDirector}
-                  />
+                  
+                  {isEditing ? (
+                    <>
+                      <input
+                        className="cue-timein-edit"
+                        type="number"
+                        step="0.1"
+                        value={editValues.timeIn}
+                        onChange={e => setEditValues(v => ({ ...v, timeIn: e.target.value }))}
+                        title="Time in seconds"
+                      />
+                      <input
+                        className="cue-character-edit"
+                        value={editValues.character}
+                        onChange={e => setEditValues(v => ({ ...v, character: e.target.value }))}
+                        placeholder="CHARACTER"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        className="cue-timein"
+                        onClick={() => {
+                          if (videoRef.current) {
+                            videoRef.current.currentTime = cue.timeIn;
+                            setCurrentTime(cue.timeIn);
+                          }
+                        }}
+                        title={`Go to ${fmtTime(cue.timeIn)}`}
+                      >
+                        {fmtTime(cue.timeIn)}
+                      </button>
+                      <input
+                        className="cue-character"
+                        value={cue.character}
+                        onChange={e => onUpdateCue(cue.id, 'character', e.target.value)}
+                        placeholder="CHARACTER"
+                        readOnly={!isDirector}
+                      />
+                    </>
+                  )}
+                  
                   <button
                     className={`cue-status cue-status--${cue.status}`}
                     onClick={() => {
-                      if (!isDirector) return;
+                      if (!isDirector || isEditing) return;
                       onUpdateCue(cue.id, 'status', STATUS_CYCLE[cue.status]);
                     }}
                     title="Change status"
                   >
                     {STATUS_LABELS[cue.status]}
                   </button>
+                  
                   {isDirector && (
-                    <button className="cue-del" onClick={() => onDeleteCue(cue.id)} title="Delete cue">
-                      <Trash2 size={9} />
-                    </button>
+                    <div className="cue-actions">
+                      {isEditing ? (
+                        <>
+                          <button className="cue-action-btn cue-action-btn--save" onClick={handleEditSave} title="Save">
+                            <CheckIcon size={10} />
+                          </button>
+                          <button className="cue-action-btn cue-action-btn--cancel" onClick={handleEditCancel} title="Cancel">
+                            <X size={10} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="cue-action-btn cue-action-btn--edit" onClick={handleEditStart} title="Edit cue">
+                            <Edit2 size={10} />
+                          </button>
+                          <button className="cue-action-btn cue-action-btn--delete" onClick={handleDelete} title="Delete cue">
+                            <Trash2 size={10} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
+                
                 <div className="cue-row-bottom">
-                  <textarea
-                    className="cue-text"
-                    value={cue.text}
-                    onChange={e => onUpdateCue(cue.id, 'text', e.target.value)}
-                    placeholder="Line to dub..."
-                    rows={2}
-                    readOnly={!isDirector}
-                  />
+                  {isEditing ? (
+                    <textarea
+                      className="cue-text-edit"
+                      value={editValues.text}
+                      onChange={e => setEditValues(v => ({ ...v, text: e.target.value }))}
+                      placeholder="Line to dub..."
+                      rows={2}
+                    />
+                  ) : (
+                    <textarea
+                      className="cue-text"
+                      value={cue.text}
+                      onChange={e => onUpdateCue(cue.id, 'text', e.target.value)}
+                      placeholder="Line to dub..."
+                      rows={2}
+                      readOnly={!isDirector}
+                    />
+                  )}
                 </div>
 
                 {/* Takes sub-row */}

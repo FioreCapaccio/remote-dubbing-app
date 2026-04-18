@@ -1,8 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
-export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream = null) => {
+/**
+ * Hook per la registrazione multi-traccia con sorgenti audio separate.
+ * Permette di registrare simultaneamente su tracce diverse con sorgenti diverse
+ * (locale, remota, o mista).
+ */
+export const useMultiTrackRecorder = (settings = { sampleRate: 44100 }, remoteStream = null) => {
   const [isRecording, setIsRecording] = useState(false);
-  const [audioURL, setAudioURL] = useState(null);
   const [takes, setTakes] = useState([]);
   const [devices, setDevices] = useState([]);
   const [outputDevices, setOutputDevices] = useState([]);
@@ -10,15 +14,15 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
   const [selectedOutput, setSelectedOutput] = useState('default');
   const [peakLevel, setPeakLevel] = useState(-60);
   
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const mediaRecordersRef = useRef({}); // Map: trackId -> MediaRecorder
+  const audioChunksRef = useRef({}); // Map: trackId -> chunks[]
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const animationFrameRef = useRef(null);
   const micStreamRef = useRef(null);
   const peakMeterCallbackRef = useRef(null);
-  const mixedStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
+  const activeRecordingsRef = useRef([]); // Track IDs currently recording
 
   useEffect(() => {
     const getDevices = async () => {
@@ -35,16 +39,13 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
     navigator.mediaDevices.ondevicechange = getDevices;
   }, []);
 
-  // Effect to sync remoteStream ref when prop changes
   useEffect(() => {
     remoteStreamRef.current = remoteStream;
-    console.log('[AudioRecorder] remoteStream updated:', remoteStream ? 'available' : 'null');
+    console.log('[MultiTrackRecorder] remoteStream updated:', remoteStream ? 'available' : 'null');
   }, [remoteStream]);
 
-  // VocalSync 4.0: Output Device Routing
   const setOutputDevice = async (deviceId) => {
     setSelectedOutput(deviceId);
-    // In App.jsx we will apply this to audio elements
   };
 
   const updatePeakMeter = useCallback(() => {
@@ -66,12 +67,11 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
     animationFrameRef.current = requestAnimationFrame(peakMeterCallbackRef.current);
   }, []);
 
-  // Keep the ref in sync with the latest callback (must be in an effect, not during render)
   useEffect(() => {
     peakMeterCallbackRef.current = updatePeakMeter;
   }, [updatePeakMeter]);
 
-  // VocalSync 5.0: Persistent Microphone Monitor
+  // Inizializza il microfono locale per il monitoraggio VU
   useEffect(() => {
     let active = true;
     const initMic = async () => {
@@ -84,13 +84,11 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
 
         const constraints = { audio: selectedDevice ? { deviceId: { exact: selectedDevice } } : true };
         
-        // Wait for user interaction if AudioContext is blocked, but navigator.mediaDevices works fine
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         if (!active) return stream.getTracks().forEach(t => t.stop());
         
         micStreamRef.current = stream;
         
-        // Dynamic Sample Rate Injection with Safety Fallback
         const contextOptions = {};
         if (settings && settings.sampleRate) {
            contextOptions.sampleRate = settings.sampleRate;
@@ -115,108 +113,117 @@ export const useAudioRecorder = (settings = { sampleRate: 44100 }, remoteStream 
     };
     initMic();
     return () => { active = false; };
-  }, [selectedDevice, updatePeakMeter, settings.sampleRate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDevice, updatePeakMeter, settings.sampleRate]);
 
-  const startRecording = useCallback((sourceType = 'mixed') => {
+  /**
+   * Avvia la registrazione multi-traccia.
+   * @param {Array} trackConfigs - Array di { trackId, audioSource } dove audioSource è 'local'|'remote'
+   */
+  const startRecording = useCallback((trackConfigs = []) => {
     try {
       if (!micStreamRef.current) {
         alert("Microphone not ready.");
         return;
       }
       
-      console.log('[AudioRecorder] Starting recording with source:', sourceType);
-      console.log('[AudioRecorder] Local mic stream:', micStreamRef.current ? 'available' : 'null');
-      console.log('[AudioRecorder] Remote stream:', remoteStreamRef.current ? 'available' : 'null');
+      console.log('[MultiTrackRecorder] Starting multi-track recording:', trackConfigs);
       
-      let streamToRecord = micStreamRef.current;
+      // Filtriamo solo le tracce audio (non video)
+      const audioTrackConfigs = trackConfigs.filter(tc => tc.trackId !== 'video');
       
-      // Se sourceType è 'remote', registra solo lo stream remoto
-      if (sourceType === 'remote' && remoteStreamRef.current) {
-        streamToRecord = remoteStreamRef.current;
-        console.log('[AudioRecorder] Recording REMOTE stream only');
+      if (audioTrackConfigs.length === 0) {
+        console.warn('[MultiTrackRecorder] No audio tracks to record');
+        return;
       }
-      // Se sourceType è 'local', registra solo il microfono locale (default)
-      else if (sourceType === 'local') {
-        streamToRecord = micStreamRef.current;
-        console.log('[AudioRecorder] Recording LOCAL stream only');
-      }
-      // Se sourceType è 'mixed' o non specificato, mixa entrambi
-      else if (remoteStreamRef.current && audioContextRef.current) {
-        try {
-          const ctx = audioContextRef.current;
-          const dest = ctx.createMediaStreamDestination();
-          
-          // Crea sorgente dal microfono locale
-          const localSource = ctx.createMediaStreamSource(micStreamRef.current);
-          const localGain = ctx.createGain();
-          localGain.gain.value = 1.0;
-          localSource.connect(localGain);
-          localGain.connect(dest);
-          
-          // Crea sorgente dallo stream remoto
-          const remoteSource = ctx.createMediaStreamSource(remoteStreamRef.current);
-          const remoteGain = ctx.createGain();
-          remoteGain.gain.value = 1.0;
-          remoteSource.connect(remoteGain);
-          remoteGain.connect(dest);
-          
-          streamToRecord = dest.stream;
-          mixedStreamRef.current = dest;
-          
-          console.log('[AudioRecorder] Mixed stream created with local + remote audio');
-        } catch (mixErr) {
-          console.error('[AudioRecorder] Error creating mixed stream:', mixErr);
-          // Fallback: usa solo il microfono locale
+
+      // Reset stato
+      mediaRecordersRef.current = {};
+      audioChunksRef.current = {};
+      activeRecordingsRef.current = [];
+      
+      const completedRecordings = [];
+      let completedCount = 0;
+
+      audioTrackConfigs.forEach(({ trackId, audioSource }) => {
+        let streamToRecord = null;
+        
+        // Determina quale stream registrare
+        if (audioSource === 'remote' && remoteStreamRef.current) {
+          streamToRecord = remoteStreamRef.current;
+          console.log(`[MultiTrackRecorder] Track ${trackId}: Recording REMOTE stream`);
+        } else {
+          // Default: registra il microfono locale
           streamToRecord = micStreamRef.current;
+          console.log(`[MultiTrackRecorder] Track ${trackId}: Recording LOCAL stream`);
         }
-      }
-      
-      const mediaRecorder = new MediaRecorder(streamToRecord);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
-      };
+        if (!streamToRecord) {
+          console.warn(`[MultiTrackRecorder] No stream available for track ${trackId}`);
+          return;
+        }
 
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        const url = URL.createObjectURL(audioBlob);
-        setAudioURL(url);
-        
-        const newTake = {
-          id: Date.now(),
-          url,
-          blob: audioBlob,
-          timestamp: new Date().toLocaleTimeString(),
-          sourceType: sourceType // Track which source was recorded
+        // Crea MediaRecorder per questa traccia
+        const mediaRecorder = new MediaRecorder(streamToRecord);
+        mediaRecordersRef.current[trackId] = mediaRecorder;
+        audioChunksRef.current[trackId] = [];
+        activeRecordingsRef.current.push(trackId);
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            if (!audioChunksRef.current[trackId]) audioChunksRef.current[trackId] = [];
+            audioChunksRef.current[trackId].push(event.data);
+          }
         };
-        setTakes((prev) => [newTake, ...prev]);
-        // Do not stop the stream or generic audio context here, to keep VU meter running
-        
-        // Cleanup mixed stream if created
-        mixedStreamRef.current = null;
-      };
 
-      mediaRecorder.start();
+        mediaRecorder.onstop = () => {
+          const chunks = audioChunksRef.current[trackId] || [];
+          if (chunks.length === 0) return;
+          
+          const audioBlob = new Blob(chunks, { type: 'audio/wav' });
+          const url = URL.createObjectURL(audioBlob);
+          
+          const newTake = {
+            id: `${trackId}-${Date.now()}`,
+            trackId: trackId,
+            url,
+            blob: audioBlob,
+            timestamp: new Date().toLocaleTimeString(),
+            sourceType: audioSource || 'local'
+          };
+          
+          completedRecordings.push(newTake);
+          completedCount++;
+          
+          // Quando tutte le registrazioni sono completate, aggiorna lo stato takes
+          if (completedCount === activeRecordingsRef.current.length) {
+            setTakes((prev) => [...completedRecordings, ...prev]);
+          }
+        };
+
+        mediaRecorder.start();
+      });
+
       setIsRecording(true);
-      console.log('[AudioRecorder] Recording started successfully');
+      console.log('[MultiTrackRecorder] Multi-track recording started successfully');
     } catch (err) {
-      console.error('Error recording:', err);
+      console.error('[MultiTrackRecorder] Error starting recording:', err);
       alert('Error: ' + err.message);
     }
   }, []);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  }, [isRecording]);
+    console.log('[MultiTrackRecorder] Stopping all recordings');
+    Object.values(mediaRecordersRef.current).forEach(recorder => {
+      if (recorder && recorder.state === 'recording') {
+        recorder.stop();
+      }
+    });
+    setIsRecording(false);
+    activeRecordingsRef.current = [];
+  }, []);
 
   return {
     isRecording,
-    audioURL,
     takes,
     devices,
     outputDevices,

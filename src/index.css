@@ -2342,3 +2342,131 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
   background: rgba(59,130,246,0.25);
   border-color: #60a5fa;
 }
+
+/* ── Track Audio Source Selector ──────────────────────────────────────────── */
+.track-source-select {
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 3px 6px;
+  cursor: pointer;
+  outline: none;
+  margin-top: 4px;
+  transition: all 0.15s;
+}
+
+.track-source-select:hover {
+  border-color: rgba(255,255,255,0.3);
+}
+
+.track-source-select:focus {
+  border-color: var(--accent);
+}
+
+.track-source-select option {
+  background: var(--bg-secondary);
+  color: #fff;
+}
+
+/* ── Cue Actions (Edit/Delete) ────────────────────────────────────────────── */
+.cue-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.cue-action-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.cue-action-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
+
+.cue-action-btn--edit:hover {
+  border-color: #60a5fa;
+  color: #60a5fa;
+}
+
+.cue-action-btn--delete:hover {
+  border-color: var(--record);
+  color: var(--record);
+  background: rgba(255,62,62,0.1);
+}
+
+.cue-action-btn--save {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0,251,130,0.1);
+}
+
+.cue-action-btn--save:hover {
+  background: rgba(0,251,130,0.2);
+}
+
+.cue-action-btn--cancel:hover {
+  border-color: var(--text-muted);
+}
+
+/* Cue Editing State */
+.cue-item--editing {
+  border-color: rgba(0,251,130,0.4);
+  background: rgba(0,251,130,0.05);
+}
+
+.cue-timein-edit {
+  font-family: monospace;
+  font-size: 0.58rem;
+  color: var(--accent);
+  background: var(--bg-main);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 2px 4px;
+  width: 70px;
+  outline: none;
+}
+
+.cue-character-edit {
+  flex: 1;
+  background: var(--bg-main);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  outline: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cue-text-edit {
+  flex: 1;
+  background: var(--bg-main);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: #e6edf3;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  outline: none;
+  padding: 4px 6px;
+  resize: none;
+  width: 100%;
+  font-family: inherit;
+}
