@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import WaveformOverlay from './WaveformOverlay';
 
@@ -11,7 +11,7 @@ const STATUS_COLORS = {
 const DawTimeline = ({ 
   isDraggingOver, handleDragOver, handleDragLeave, handleDrop,
   isScrubbing: isScrubbingRef, duration, sidebarWidth, zoomLevel, videoRef, setCurrentTime,
-  cues, onAddCue,
+  cues, onAddCue, onUpdateCue,
   tracks, setTracks, selectedTrackId, setSelectedTrackId,
   selectedClipId, setSelectedClipId,
   draggingClip, setDraggingClip, dragStartRef,
@@ -19,6 +19,9 @@ const DawTimeline = ({
   internalTimeRef
 }) => {
   const [contextMenu, setContextMenu] = useState(null); // { clipId, trackId, x, y }
+  const [draggingCue, setDraggingCue] = useState(null); // { cueId, startX, startTimeIn, previewTimeIn }
+  const dragCueRef = useRef(null);
+  const rulerRef = useRef(null);
 
   // Close context menu when clicking elsewhere
   useEffect(() => {
@@ -26,6 +29,49 @@ const DawTimeline = ({
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
   }, []);
+
+  // Handle cue dragging globally
+  useEffect(() => {
+    if (!draggingCue) return;
+
+    const handleMouseMove = (e) => {
+      if (!rulerRef.current || !dragCueRef.current) return;
+      
+      const rulerRect = rulerRef.current.getBoundingClientRect();
+      const relativeX = e.clientX - rulerRect.left;
+      const newTimeIn = Math.max(0, relativeX / zoomLevel);
+      
+      // Snap to whole seconds (optional, 0.1s tolerance)
+      const snapThreshold = 0.15;
+      const nearestSecond = Math.round(newTimeIn);
+      const snappedTimeIn = Math.abs(newTimeIn - nearestSecond) < snapThreshold 
+        ? nearestSecond 
+        : newTimeIn;
+      
+      // Clamp to duration
+      const clampedTimeIn = duration > 0 ? Math.min(snappedTimeIn, duration) : snappedTimeIn;
+      
+      setDraggingCue(prev => ({ ...prev, previewTimeIn: clampedTimeIn }));
+    };
+
+    const handleMouseUp = () => {
+      if (draggingCue && onUpdateCue && draggingCue.previewTimeIn !== undefined) {
+        // Round to 3 decimal places for precision
+        const finalTimeIn = Math.round(draggingCue.previewTimeIn * 1000) / 1000;
+        onUpdateCue(draggingCue.cueId, 'timeIn', finalTimeIn);
+      }
+      setDraggingCue(null);
+      dragCueRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [draggingCue, zoomLevel, duration, onUpdateCue]);
 
   const updateTrack = (id, field, value) => {
     setTracks(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t));
@@ -93,18 +139,22 @@ const DawTimeline = ({
       }}
     >
       <div 
+        ref={rulerRef}
         className="timeline-ruler" 
         style={{ marginLeft: `${sidebarWidth}px`, width: `${Math.max(2000, duration * zoomLevel)}px` }}
         onDoubleClick={(e) => {
+           // Only add cue if not clicking on a cue pin
+           if (e.target.closest('.timeline-cue-pin')) return;
            e.stopPropagation();
            const timelineRect = e.currentTarget.getBoundingClientRect();
            const relativeX = e.clientX - timelineRect.left;
            const newTime = Math.max(0, relativeX / zoomLevel);
            const clampedTime = duration > 0 ? Math.min(newTime, duration) : newTime;
-           if (videoRef.current) videoRef.current.currentTime = clampedTime;
-           if (internalTimeRef) internalTimeRef.current = clampedTime;
-           setCurrentTime(clampedTime);
-           onAddCue(clampedTime);
+           const roundedTime = Math.round(clampedTime * 1000) / 1000;
+           if (videoRef.current) videoRef.current.currentTime = roundedTime;
+           if (internalTimeRef) internalTimeRef.current = roundedTime;
+           setCurrentTime(roundedTime);
+           onAddCue(roundedTime);
         }}
       >
         {Array.from({ length: Math.ceil((duration || 0) / 5) + 4 }).map((_, i) => {
@@ -124,19 +174,47 @@ const DawTimeline = ({
         {cues.map((cue, idx) => {
           const color = STATUS_COLORS[cue.status] || '#8b949e';
           const isActive = activeCue?.id === cue.id;
+          const isDragging = draggingCue?.cueId === cue.id;
+          const displayTimeIn = isDragging && draggingCue.previewTimeIn !== undefined 
+            ? draggingCue.previewTimeIn 
+            : cue.timeIn;
           return (
             <div
               key={cue.id}
-              className={`timeline-cue-pin${isActive ? ' timeline-cue-pin--active' : ''}`}
-              style={{ left: `${cue.timeIn * zoomLevel}px` }}
+              className={`timeline-cue-pin${isActive ? ' timeline-cue-pin--active' : ''}${isDragging ? ' timeline-cue-pin--dragging' : ''}`}
+              style={{ left: `${displayTimeIn * zoomLevel}px` }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dragCueRef.current = cue.id;
+                setDraggingCue({ 
+                  cueId: cue.id, 
+                  startX: e.clientX, 
+                  startTimeIn: cue.timeIn,
+                  previewTimeIn: cue.timeIn
+                });
+              }}
             >
               <div className="cue-pin-flag" style={{ background: color, color: '#000' }}>
                 #{idx + 1}{cue.character ? ` ${cue.character}` : ''}
+                {isDragging && (
+                  <span className="cue-pin-time-preview">
+                    {displayTimeIn.toFixed(2)}s
+                  </span>
+                )}
               </div>
               <div className="cue-pin-line" style={{ background: color }} />
             </div>
           );
         })}
+        
+        {/* Drag guide line */}
+        {draggingCue && draggingCue.previewTimeIn !== undefined && (
+          <div 
+            className="cue-drag-guide"
+            style={{ left: `${draggingCue.previewTimeIn * zoomLevel}px` }}
+          />
+        )}
       </div>
 
       <div className="lanes-container">

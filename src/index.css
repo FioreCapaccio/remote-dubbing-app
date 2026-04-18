@@ -671,8 +671,22 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 60;
+  cursor: grab;
+  user-select: none;
+  transition: transform 0.05s ease;
+}
+
+.timeline-cue-pin:active,
+.timeline-cue-pin--dragging {
+  cursor: grabbing;
+  z-index: 70;
+}
+
+.timeline-cue-pin--dragging .cue-pin-flag {
+  box-shadow: 0 0 8px rgba(255,255,255,0.5);
+  transform: scale(1.05);
 }
 
 .cue-pin-flag {
@@ -681,18 +695,27 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
   padding: 1px 5px 1px 4px;
   border-radius: 0 3px 3px 0;
   white-space: nowrap;
-  max-width: 90px;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   color: #000;
   line-height: 1.6;
   flex-shrink: 0;
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+}
+
+.cue-pin-time-preview {
+  margin-left: 4px;
+  font-family: monospace;
+  font-size: 0.55rem;
+  opacity: 0.9;
 }
 
 .cue-pin-line {
   width: 1.5px;
   flex: 1;
   opacity: 0.5;
+  transition: opacity 0.1s ease;
 }
 
 .timeline-cue-pin--active .cue-pin-flag {
@@ -701,6 +724,22 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 
 .timeline-cue-pin--active .cue-pin-line {
   opacity: 1;
+}
+
+.timeline-cue-pin--dragging .cue-pin-line {
+  opacity: 1;
+  width: 2px;
+}
+
+.cue-drag-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.8);
+  pointer-events: none;
+  z-index: 55;
+  box-shadow: 0 0 4px rgba(255,255,255,0.5);
 }
 
 /* ── Connection Status Indicator ─────────────────────────────────────────── */

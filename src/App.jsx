@@ -578,7 +578,7 @@ const App = () => {
             handleDragLeave={() => setIsDraggingOver(false)} handleDrop={handleDrop}
             isScrubbing={isScrubbingRef} duration={duration} sidebarWidth={sidebarWidth}
             zoomLevel={zoomLevel} videoRef={videoRef} setCurrentTime={setCurrentTime}
-            cues={cues} onAddCue={handleAddCue}
+            cues={cues} onAddCue={handleAddCue} onUpdateCue={updateCue}
             tracks={tracks} setTracks={setTracks}
             selectedTrackId={selectedTrackId} setSelectedTrackId={setSelectedTrackId}
             selectedClipId={selectedClipId} setSelectedClipId={setSelectedClipId}
