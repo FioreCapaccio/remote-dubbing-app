@@ -12,7 +12,8 @@ const STEPS = [
 
 const DEFAULT_COLUMN_MAP = {
   progressivo: null,
-  timecode: null,
+  timeIn: null,
+  timeOut: null,
   battuta: null,
   personaggio: null
 };
@@ -152,7 +153,8 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
         rawHeaders.forEach(header => {
           const nameLower = header.name.toLowerCase();
           if (/num|prog|id|cue|#|n\.?\s*°/.test(nameLower)) autoMap.progressivo = header.index;
-          else if (/time|tc|inizio|start|entrata/.test(nameLower)) autoMap.timecode = header.index;
+          else if (/time\s*out|fine|end|uscita|out/.test(nameLower)) autoMap.timeOut = header.index;
+          else if (/time|tc|inizio|start|entrata/.test(nameLower)) autoMap.timeIn = header.index;
           else if (/testo|battuta|line|dialog|text|frase/.test(nameLower)) autoMap.battuta = header.index;
           else if (/char|pers|attore|actor|voice|role/.test(nameLower)) autoMap.personaggio = header.index;
         });
@@ -185,8 +187,8 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
   }, []);
 
   const validateAndParse = useCallback(() => {
-    if (columnMap.timecode === null) {
-      alert('Devi selezionare la colonna Timecode');
+    if (columnMap.timeIn === null) {
+      alert('Devi selezionare la colonna Timecode Inizio');
       return;
     }
     
@@ -195,23 +197,52 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
     
     rawData.forEach((row, idx) => {
       const rowNum = idx + 2; // +2 perché riga 1 è header
-      const timecodeValue = row[columnMap.timecode];
+      const timeInValue = row[columnMap.timeIn];
       
-      if (!validateTimecode(timecodeValue)) {
+      if (!validateTimecode(timeInValue)) {
         errors.push({
           row: rowNum,
-          field: 'timecode',
-          value: timecodeValue,
-          message: `Timecode non valido: "${timecodeValue}"`
+          field: 'timeIn',
+          value: timeInValue,
+          message: `Timecode inizio non valido: "${timeInValue}"`
         });
         return;
       }
       
-      const timeIn = parseTimecode(timecodeValue);
+      const timeIn = parseTimecode(timeInValue);
+      
+      // Parsing timeOut se mappato
+      let timeOut = null;
+      if (columnMap.timeOut !== null) {
+        const timeOutValue = row[columnMap.timeOut];
+        if (timeOutValue !== null && timeOutValue !== undefined && timeOutValue !== '') {
+          if (!validateTimecode(timeOutValue)) {
+            errors.push({
+              row: rowNum,
+              field: 'timeOut',
+              value: timeOutValue,
+              message: `Timecode fine non valido: "${timeOutValue}"`
+            });
+            return;
+          }
+          timeOut = parseTimecode(timeOutValue);
+          // Verifica che timeOut sia dopo timeIn
+          if (timeOut <= timeIn) {
+            errors.push({
+              row: rowNum,
+              field: 'timeOut',
+              value: timeOutValue,
+              message: `Timecode fine deve essere dopo il timecode inizio`
+            });
+            return;
+          }
+        }
+      }
       
       parsed.push({
         progressivo: columnMap.progressivo !== null ? String(row[columnMap.progressivo] || '') : String(idx + 1),
         timeIn,
+        timeOut,
         battuta: columnMap.battuta !== null ? String(row[columnMap.battuta] || '') : '',
         personaggio: columnMap.personaggio !== null ? String(row[columnMap.personaggio] || '') : ''
       });
@@ -226,7 +257,7 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
     const cues = parsedData.map((item, idx) => ({
       id: Date.now() + idx,
       timeIn: item.timeIn,
-      timeOut: null,
+      timeOut: item.timeOut,
       character: item.personaggio,
       text: item.battuta,
       status: 'todo'
@@ -239,7 +270,7 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
   const canProceed = () => {
     switch (currentStep) {
       case 1: return true;
-      case 2: return columnMap.timecode !== null;
+      case 2: return columnMap.timeIn !== null;
       case 3: return validationErrors.length === 0 && parsedData.length > 0;
       default: return false;
     }
@@ -278,7 +309,8 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
               <p>Il file Excel deve contenere almeno una colonna con i timecode. Le colonne consigliate sono:</p>
               <ul>
                 <li><strong>Progressivo:</strong> Numero identificativo del cue (opzionale)</li>
-                <li><strong>Timecode:</strong> In punto del cue <em>(obbligatorio)</em></li>
+                <li><strong>Timecode Inizio:</strong> In punto del cue <em>(obbligatorio)</em></li>
+                <li><strong>Timecode Fine:</strong> Out punto del cue (opzionale)</li>
                 <li><strong>Battuta:</strong> Testo da doppiare (opzionale)</li>
                 <li><strong>Personaggio:</strong> Nome del personaggio (opzionale)</li>
               </ul>
@@ -346,11 +378,11 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
                 <span className="field-hint">Numero identificativo del cue</span>
               </div>
               
-              <div className={`mapping-field required ${columnMap.timecode === null ? 'error' : 'mapped'}`}>
-                <label>Timecode *</label>
+              <div className={`mapping-field required ${columnMap.timeIn === null ? 'error' : 'mapped'}`}>
+                <label>Timecode Inizio *</label>
                 <select
-                  value={columnMap.timecode ?? ''}
-                  onChange={(e) => setColumnMap(m => ({ ...m, timecode: e.target.value ? parseInt(e.target.value) : null }))}
+                  value={columnMap.timeIn ?? ''}
+                  onChange={(e) => setColumnMap(m => ({ ...m, timeIn: e.target.value ? parseInt(e.target.value) : null }))}
                 >
                   <option value="">-- Seleziona colonna --</option>
                   {headers.map(h => (
@@ -358,6 +390,20 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
                   ))}
                 </select>
                 <span className="field-hint">In punto del cue (obbligatorio)</span>
+              </div>
+              
+              <div className={`mapping-field ${columnMap.timeOut === null ? 'optional' : 'mapped'}`}>
+                <label>Timecode Fine</label>
+                <select
+                  value={columnMap.timeOut ?? ''}
+                  onChange={(e) => setColumnMap(m => ({ ...m, timeOut: e.target.value ? parseInt(e.target.value) : null }))}
+                >
+                  <option value="">-- Non mappare --</option>
+                  {headers.map(h => (
+                    <option key={h.index} value={h.index}>{h.name}</option>
+                  ))}
+                </select>
+                <span className="field-hint">Out punto del cue (opzionale)</span>
               </div>
               
               <div className={`mapping-field ${columnMap.battuta === null ? 'optional' : 'mapped'}`}>
@@ -399,9 +445,14 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
                       #{rawData[0]?.[columnMap.progressivo] || '1'}
                     </span>
                   )}
-                  {columnMap.timecode !== null && (
+                  {columnMap.timeIn !== null && (
                     <span className="preview-chip timecode">
-                      {rawData[0]?.[columnMap.timecode] || '--:--:--:--'}
+                      {rawData[0]?.[columnMap.timeIn] || '--:--:--:--'}
+                    </span>
+                  )}
+                  {columnMap.timeOut !== null && (
+                    <span className="preview-chip timecode-out">
+                      → {rawData[0]?.[columnMap.timeOut] || '--:--:--:--'}
                     </span>
                   )}
                   {columnMap.personaggio !== null && (
@@ -461,7 +512,10 @@ const AdrImportWizard = ({ isOpen, onClose, onImportCues }) => {
                     {parsedData.slice(0, 10).map((item, idx) => (
                       <div key={idx} className="cue-preview-item">
                         <span className="cue-num">#{item.progressivo}</span>
-                        <span className="cue-tc">{formatSeconds(item.timeIn)}</span>
+                        <span className="cue-tc">
+                          {formatSeconds(item.timeIn)}
+                          {item.timeOut !== null && ` → ${formatSeconds(item.timeOut)}`}
+                        </span>
                         <span className="cue-char">{item.personaggio || '—'}</span>
                         <span className="cue-text" title={item.battuta}>
                           {item.battuta.slice(0, 40)}{item.battuta.length > 40 ? '...' : ''}
