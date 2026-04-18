@@ -325,12 +325,19 @@ const App = () => {
   // Uses internalTimeRef so it doesn't restart when currentTime state changes.
   useEffect(() => {
     let animationId;
-    const hasSolo = tracks.some(t => t.solo && t.type !== 'video');
+    // Include ALL track types in hasSolo so soloing an audio track mutes the video too
+    const hasSolo = tracks.some(t => t.solo);
     const syncEngine = () => {
       const exactTime = videoRef.current ? videoRef.current.currentTime : internalTimeRef.current;
       tracks.forEach(track => {
-        if (track.type === 'video') return;
         const effectiveMuted = track.muted || (hasSolo && !track.solo);
+        if (track.type === 'video') {
+          // Apply mute/volume/solo to the video element directly
+          if (videoRef.current) {
+            videoRef.current.volume = effectiveMuted ? 0 : Math.max(0, Math.min(1, track.volume));
+          }
+          return;
+        }
         track.clips.forEach(clip => {
           const audioEl = document.getElementById(clip.id);
           if (!audioEl) return;
@@ -362,10 +369,15 @@ const App = () => {
 
   // Apply volume / mute / solo / gain immediately on track state changes (works even when paused)
   useEffect(() => {
-    const hasSolo = tracks.some(t => t.solo && t.type !== 'video');
+    const hasSolo = tracks.some(t => t.solo);
     tracks.forEach(track => {
-      if (track.type === 'video') return;
       const effectiveMuted = track.muted || (hasSolo && !track.solo);
+      if (track.type === 'video') {
+        if (videoRef.current) {
+          videoRef.current.volume = effectiveMuted ? 0 : Math.max(0, Math.min(1, track.volume));
+        }
+        return;
+      }
       track.clips.forEach(clip => {
         const el = document.getElementById(clip.id);
         if (!el) return;

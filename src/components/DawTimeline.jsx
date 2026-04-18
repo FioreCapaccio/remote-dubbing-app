@@ -145,14 +145,25 @@ const DawTimeline = ({
             <div className="track-header-cell" style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}>
               <span className="name">{track.name}</span>
               <div className="row-controls">
-                <button className={track.muted ? 'm-on' : ''} onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'muted', !track.muted); }}>M</button>
-                <button className={track.solo ? 's-on' : ''} onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'solo', !track.solo); }}>S</button>
+                <button
+                  className={track.muted ? 'm-on' : ''}
+                  title={track.muted ? 'Unmute' : 'Mute'}
+                  onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'muted', !track.muted); }}
+                >M</button>
+                <button
+                  className={track.solo ? 's-on' : ''}
+                  title={track.solo ? 'Unsolo' : 'Solo'}
+                  onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'solo', !track.solo); }}
+                >S</button>
+                <span className="vol-pct" onClick={e => e.stopPropagation()}>{Math.round(track.volume * 100)}%</span>
               </div>
               <input
                 type="range" min="0" max="1" step="0.01"
                 value={track.volume}
+                title={`Volume: ${Math.round(track.volume * 100)}%`}
                 onChange={(e) => { e.stopPropagation(); updateTrack(track.id, 'volume', parseFloat(e.target.value)); }}
                 onMouseDown={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
                 onClick={e => e.stopPropagation()}
               />
             </div>
