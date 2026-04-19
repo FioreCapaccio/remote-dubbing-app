@@ -141,15 +141,15 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       console.log('[AudioRecorder] Guest starting LOCAL recording');
       setRecordingSource('local');
       
-      // Ottieni il microfono locale con alta qualità
+      // Ottieni il microfono locale con alta qualità - usa le impostazioni dal direttore
       const audioConstraints = {
         audio: {
-          channelCount: 1,
+          channelCount: 1, // Force mono
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
           sampleRate: settings.sampleRate || 48000,
-          sampleSize: 24
+          sampleSize: settings.bitDepth || 24
         }
       };
       
@@ -203,9 +203,15 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       
       mimeTypeRef.current = mimeType;
 
+      // Calcola il bitrate in base alle impostazioni audio
+      // Per Opus: qualità eccellente = sampleRate * bitDepth * canali (mono = 1)
+      const calculatedBitrate = (settings.sampleRate || 48000) * (settings.bitDepth || 24) * 1;
+      // Limita a range ragionevole per MediaRecorder (min 64kbps, max 512kbps)
+      const targetBitrate = Math.min(Math.max(calculatedBitrate, 64000), 512000);
+
       const recorderOptions = {
         mimeType,
-        audioBitsPerSecond: 128000
+        audioBitsPerSecond: targetBitrate
       };
 
       const mediaRecorder = new MediaRecorder(stream, recorderOptions);
@@ -267,7 +273,7 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       console.error('[AudioRecorder] Error starting local recording:', err);
       alert('Errore durante l\'avvio della registrazione: ' + err.message);
     }
-  }, [role, settings.sampleRate, selectedDevice, onBlobReady]);
+  }, [role, settings.sampleRate, settings.bitDepth, selectedDevice, onBlobReady]);
 
   // Avvia registrazione - SOLO guest registra localmente. Host NON registra.
   const startRecording = useCallback((trackId = 'track-1') => {

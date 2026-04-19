@@ -29,7 +29,7 @@ const PEER_CONFIG = {
 };
 
 // connectionStatus: 'disconnected' | 'waiting' | 'connected'
-export const usePeerSession = (roomName, role, onRemoteCommand) => {
+export const usePeerSession = (roomName, role, onRemoteCommand, audioSettings = { sampleRate: 48000, bitDepth: 24 }) => {
   const [peerId, setPeerId] = useState(null);
   const [connection, setConnection] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
@@ -67,15 +67,15 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     }
     try {
       console.log('[PeerSession] Starting talkback...');
-      // Audio di alta qualità per il direttore: 48kHz, senza elaborazione
+      // Audio di alta qualità per il direttore: usa le impostazioni audioSettings
       const audioConstraints = {
         audio: {
+          channelCount: 1, // Force mono
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
-          sampleRate: 48000,
-          sampleSize: 24,
-          channelCount: 1
+          sampleRate: audioSettings.sampleRate || 48000,
+          sampleSize: audioSettings.bitDepth || 24
         }
       };
       const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
@@ -256,15 +256,15 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     peer.on('call', (call) => {
       console.log('[PeerSession] Incoming call from:', call.peer);
       // Quando riceviamo una chiamata, rispondiamo con il nostro stream audio
-      // Il guest (doppiatore) invia il proprio microfono con qualità alta (48kHz Opus)
+      // Il guest (doppiatore) invia il proprio microfono con qualità alta usando audioSettings
       const audioConstraints = {
         audio: {
+          channelCount: 1, // Force mono
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
-          sampleRate: 48000,
-          sampleSize: 24,
-          channelCount: 1
+          sampleRate: audioSettings.sampleRate || 48000,
+          sampleSize: audioSettings.bitDepth || 24
         }
       };
       navigator.mediaDevices.getUserMedia(audioConstraints).then(stream => {
@@ -350,7 +350,7 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
       if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
       if (peer) peer.destroy();
     };
-  }, [roomName, role]);
+  }, [roomName, role, audioSettings]);
 
   const sendCommand = useCallback((cmd) => {
     if (connection && isConnected) {

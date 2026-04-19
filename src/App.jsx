@@ -192,7 +192,7 @@ const App = () => {
     console.log('[App] Audio clip added to track:', targetTrackId);
   }, [selectedTrackId]);
 
-  const { peerId, isConnected, connectionStatus, connectionError, sendCommand, sendAudioBlob, remoteStream, startTalkback, stopTalkback, connections, disconnectUser } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
+  const { peerId, isConnected, connectionStatus, connectionError, sendCommand, sendAudioBlob, remoteStream, startTalkback, stopTalkback, connections, disconnectUser } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper, audioSettings);
 
   // Hook per la registrazione audio
   // - Host (direttore): riceve blob dal guest e li aggiunge alla timeline
