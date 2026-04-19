@@ -225,21 +225,30 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'DejaVu
   gap: 0;
 }
 .tc-smpte-label {
-  font-size: 0.48rem;
+  font-size: 0.55rem;
   font-weight: 900;
   letter-spacing: 0.12em;
-  color: var(--text-muted);
+  color: #4ade80;
   text-transform: uppercase;
   line-height: 1;
-  margin-bottom: 1px;
+  margin-bottom: 2px;
 }
-.tc-display { font-size: 1.8rem; font-family: monospace; color: var(--accent); font-weight: 900; line-height: 1; }
+.tc-display {
+  font-size: 2.4rem;
+  font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
+  color: #4ade80;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.5), 0 0 20px rgba(74, 222, 128, 0.3);
+  letter-spacing: 0.05em;
+}
 .tc-duration {
-  font-size: 0.65rem;
-  font-family: monospace;
-  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
+  color: #22c55e;
   font-weight: 700;
-  margin-top: 2px;
+  margin-top: 3px;
+  letter-spacing: 0.03em;
 }
 .filename { font-size: 0.65rem; color: var(--text-muted); font-weight: 800; }
 

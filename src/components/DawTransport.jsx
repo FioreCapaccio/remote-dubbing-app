@@ -99,7 +99,7 @@ const DawTransport = ({
 
       {/* CENTER: Timecode */}
       <div className="transport-center">
-        <div className="tc-display-block">
+        <div className="tc-display-block tc-display-block--enhanced">
           <div className="tc-smpte-label">TC 25fps</div>
           <div className="tc-display">{tc}</div>
           <div className="tc-duration">/ {totalTc}</div>
