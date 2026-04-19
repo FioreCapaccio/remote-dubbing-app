@@ -1179,8 +1179,8 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 /* Track Volume Meter - Enhanced visibility and fixed */
 .track-volume-meter {
   width: 100%;
-  height: 18px !important;
-  min-height: 18px;
+  height: 70px !important;
+  min-height: 70px;
   background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
   border-radius: 4px;
   overflow: hidden;
@@ -1195,7 +1195,7 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 
 .track-volume-meter > div:first-child {
   height: 100% !important;
-  min-height: 18px;
+  min-height: 70px;
   border-radius: 3px;
   box-shadow: 0 0 4px rgba(0, 255, 136, 0.3);
   display: block !important;
