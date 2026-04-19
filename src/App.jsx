@@ -851,7 +851,12 @@ const App = () => {
       
       // Load project data
       setCues(project.cues || []);
-      setTracks(project.tracks || [
+      // Normalizza le tracce per assicurare che le tracce importate/caricate abbiano deletable
+      const normalizedTracks = (project.tracks || []).map(track => ({
+        ...track,
+        deletable: track.deletable ?? (track.id !== 'video' && track.id !== 'track-1')
+      }));
+      setTracks(normalizedTracks.length > 0 ? normalizedTracks : [
         { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
         { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], recEnabled: true }
       ]);
@@ -1053,7 +1058,8 @@ const App = () => {
       await new Promise(r => { audio.onloadedmetadata = r; audio.onerror = r; });
       setTracks(prev => [...prev, {
         id: `dropped-${Date.now()}`, name: f.name.toUpperCase(), volume: 1, muted: false, solo: false, type: 'audio',
-        clips: [{ id: `clip-${Date.now()}`, url, startTime: dropTime, duration: audio.duration || 5, gain: 1 }]
+        clips: [{ id: `clip-${Date.now()}`, url, startTime: dropTime, duration: audio.duration || 5, gain: 1 }],
+        deletable: true
       }]);
     }
   };
