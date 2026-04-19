@@ -83,8 +83,9 @@ const VintageVUMeter = ({ dbLevel = -60, trackId }) => {
       zones.forEach(zone => {
         const zoneStart = startAngle - (startAngle - endAngle) * zone.start;
         const zoneEnd = startAngle - (startAngle - endAngle) * zone.end;
+        const zoneRadius = Math.max(1, radius - 12);
         ctx.beginPath();
-        ctx.arc(centerX, centerY, radius - 12, zoneEnd, zoneStart);
+        ctx.arc(centerX, centerY, zoneRadius, zoneEnd, zoneStart);
         ctx.lineWidth = 8;
         ctx.strokeStyle = zone.color;
         ctx.stroke();
@@ -99,10 +100,12 @@ const VintageVUMeter = ({ dbLevel = -60, trackId }) => {
         const tickLength = isMajor ? 10 : 5;
         const tickWidth = isMajor ? 2 : 1;
 
-        const x1 = centerX + Math.cos(angle) * (radius - 20);
-        const y1 = centerY - Math.sin(angle) * (radius - 20);
-        const x2 = centerX + Math.cos(angle) * (radius - 20 - tickLength);
-        const y2 = centerY - Math.sin(angle) * (radius - 20 - tickLength);
+        const tickRadiusInner = Math.max(1, radius - 20);
+        const tickRadiusOuter = Math.max(1, radius - 20 - tickLength);
+        const x1 = centerX + Math.cos(angle) * tickRadiusInner;
+        const y1 = centerY - Math.sin(angle) * tickRadiusInner;
+        const x2 = centerX + Math.cos(angle) * tickRadiusOuter;
+        const y2 = centerY - Math.sin(angle) * tickRadiusOuter;
 
         ctx.beginPath();
         ctx.moveTo(x1, y1);
@@ -113,7 +116,7 @@ const VintageVUMeter = ({ dbLevel = -60, trackId }) => {
 
         // Numeri sulle tacche principali
         if (isMajor) {
-          const labelRadius = radius - 36;
+          const labelRadius = Math.max(1, radius - 36);
           const labelX = centerX + Math.cos(angle) * labelRadius;
           const labelY = centerY - Math.sin(angle) * labelRadius;
           
@@ -141,7 +144,7 @@ const VintageVUMeter = ({ dbLevel = -60, trackId }) => {
       const currentAngle = startAngle - (startAngle - endAngle) * smoothedValueRef.current;
 
       // Disegna lancetta
-      const needleLength = radius - 25;
+      const needleLength = Math.max(1, radius - 25);
       const needleX = centerX + Math.cos(currentAngle) * needleLength;
       const needleY = centerY - Math.sin(currentAngle) * needleLength;
 
