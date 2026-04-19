@@ -200,12 +200,31 @@ const App = () => {
   const handleRecordingBlob = useCallback((blob, metadata) => {
     // Questo callback viene chiamato solo dal guest quando finisce la registrazione
     if (sessionRole === 'guest' && sendAudioBlob) {
-      console.log('[App] Guest sending recorded blob to host');
+      console.log('[App] Guest sending recorded blob to host and adding to own timeline');
+      
+      // 1. Invia il blob al direttore
       setRecordingStatus('sent'); // Mostra "File inviato" per l'attore
       sendAudioBlob(blob, {
         ...metadata,
         recordStartTime: recordStartTime.current
       });
+      
+      // 2. Aggiungi il clip anche alla timeline dell'attore (per poter risentire la registrazione)
+      const url = URL.createObjectURL(blob);
+      const tDuration = internalTimeRef.current - recordStartTime.current;
+      const targetTrackId = metadata.trackId || 'track-1';
+      
+      setTracks(prev => prev.map(t => t.id === targetTrackId ? {
+        ...t, clips: [...t.clips, {
+          id: `clip-${Date.now()}`,
+          url: url,
+          startTime: recordStartTime.current,
+          duration: tDuration > 0 ? tDuration : 2,
+          gain: 1,
+          sourceType: 'local'
+        }]
+      } : t));
+      
       // Reset dopo 3 secondi
       if (recordingStatusTimerRef.current) clearTimeout(recordingStatusTimerRef.current);
       recordingStatusTimerRef.current = setTimeout(() => setRecordingStatus('idle'), 3000);
