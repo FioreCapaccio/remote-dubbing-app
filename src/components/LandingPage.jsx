@@ -1,15 +1,7 @@
-import React, { useState } from 'react';
-import { Play, Mic, Zap, Headphones, Film, BookOpen, User, Users } from 'lucide-react';
+import React from 'react';
+import { Mic, Zap, Headphones, Film, BookOpen, User, Users } from 'lucide-react';
 
 const LandingPage = ({ onLaunch }) => {
-  const [selectedRole, setSelectedRole] = useState(null);
-
-  const handleEnter = () => {
-    if (selectedRole) {
-      onLaunch(selectedRole);
-    }
-  };
-
   return (
     <div className="landing-container">
       {/* Hero Section */}
@@ -30,16 +22,16 @@ const LandingPage = ({ onLaunch }) => {
             <p className="role-selection-title">SELECT YOUR ROLE TO ENTER</p>
             <div className="role-cards">
               <button 
-                className={`role-card ${selectedRole === 'host' ? 'role-card--selected' : ''}`}
-                onClick={() => setSelectedRole('host')}
+                className="role-card"
+                onClick={() => onLaunch('host')}
               >
                 <Users size={32} />
                 <span className="role-card-title">DIRETTORE</span>
                 <span className="role-card-desc">Control room & recording</span>
               </button>
               <button 
-                className={`role-card ${selectedRole === 'guest' ? 'role-card--selected' : ''}`}
-                onClick={() => setSelectedRole('guest')}
+                className="role-card"
+                onClick={() => onLaunch('guest')}
               >
                 <User size={32} />
                 <span className="role-card-title">ATTORE / DOPPIATORE</span>
@@ -49,13 +41,6 @@ const LandingPage = ({ onLaunch }) => {
           </div>
 
           <div className="hero-actions">
-            <button 
-              className="btn-primary" 
-              onClick={handleEnter}
-              disabled={!selectedRole}
-            >
-              <Play size={20} fill="currentColor" /> ENTER ADR STATION
-            </button>
             <button className="btn-secondary">
               <BookOpen size={20} /> DOCUMENTATION
             </button>

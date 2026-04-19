@@ -21,11 +21,13 @@ const DawTransport = ({
   onLoadProject,
   onNewProject,
   onExportProject,
-  onImportCues
+  onImportCues,
+  sessionRole
 }) => {
   const [showImportWizard, setShowImportWizard] = useState(false);
   const tc      = toSMPTE(currentTime);
   const totalTc = toSMPTE(duration || 0);
+  const isDirector = sessionRole === 'host';
 
   return (
     <header className="pro-transport">
@@ -57,46 +59,50 @@ const DawTransport = ({
         </div>
         
         <div className="transport-project-controls">
-          <button
-            onClick={onNewProject}
-            className="btn-transport btn-project"
-            title="New Project"
-          >
-            <FilePlus size={16} />
-            <span className="btn-label">NEW</span>
-          </button>
-          <button
-            onClick={onSaveProject}
-            className="btn-transport btn-project"
-            title="Save Project"
-          >
-            <Save size={16} />
-            <span className="btn-label">SAVE</span>
-          </button>
-          <button
-            onClick={onLoadProject}
-            className="btn-transport btn-project"
-            title="Load Project"
-          >
-            <FolderOpen size={16} />
-            <span className="btn-label">LOAD</span>
-          </button>
-          <button
-            onClick={onExportProject}
-            className="btn-transport btn-project btn-export"
-            title="Export Project to File"
-          >
-            <Download size={16} />
-            <span className="btn-label">EXPORT</span>
-          </button>
-          <button
-            onClick={() => setShowImportWizard(true)}
-            className="btn-transport btn-project btn-import-adr"
-            title="Import ADR from Excel"
-          >
-            <FileSpreadsheet size={16} />
-            <span className="btn-label">IMPORT ADR</span>
-          </button>
+          {isDirector && (
+            <>
+              <button
+                onClick={onNewProject}
+                className="btn-transport btn-project"
+                title="New Project"
+              >
+                <FilePlus size={16} />
+                <span className="btn-label">NEW</span>
+              </button>
+              <button
+                onClick={onSaveProject}
+                className="btn-transport btn-project"
+                title="Save Project"
+              >
+                <Save size={16} />
+                <span className="btn-label">SAVE</span>
+              </button>
+              <button
+                onClick={onLoadProject}
+                className="btn-transport btn-project"
+                title="Load Project"
+              >
+                <FolderOpen size={16} />
+                <span className="btn-label">LOAD</span>
+              </button>
+              <button
+                onClick={onExportProject}
+                className="btn-transport btn-project btn-export"
+                title="Export Project to File"
+              >
+                <Download size={16} />
+                <span className="btn-label">EXPORT</span>
+              </button>
+              <button
+                onClick={() => setShowImportWizard(true)}
+                className="btn-transport btn-project btn-import-adr"
+                title="Import ADR from Excel"
+              >
+                <FileSpreadsheet size={16} />
+                <span className="btn-label">IMPORT ADR</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 

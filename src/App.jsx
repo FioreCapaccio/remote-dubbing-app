@@ -950,6 +950,7 @@ const App = () => {
             onNewProject={handleNewProject}
             onExportProject={handleExportProject}
             onImportCues={handleImportCues}
+            sessionRole={sessionRole}
           />
           <VideoPreview 
             videoHeight={videoHeight} videoURL={videoURL} videoRef={videoRef}
