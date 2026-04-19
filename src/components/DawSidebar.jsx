@@ -299,23 +299,11 @@ const DawSidebar = ({
               <span className="pin-hint">Dai questo PIN all'attore per connettersi</span>
             </div>
           ) : (
-            // Actor: show PIN input
-            <div className="pin-input-wrap">
-              <label className="pin-label"><KeyRound size={12} /> INSERISCI PIN</label>
-              <input 
-                className="pin-input"
-                type="text" 
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={4}
-                placeholder="4 cifre..." 
-                value={roomName} 
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                  setRoomName(val);
-                }} 
-              />
-              <span className="pin-hint">Inserisci il PIN fornito dal direttore</span>
+            // Actor: show connection status only (PIN entered on landing)
+            <div className="pin-display" style={{ background: 'transparent', border: '1px solid var(--border)' }}>
+              <label className="pin-label" style={{ color: 'var(--text-muted)' }}><KeyRound size={12} /> SESSIONE</label>
+              <div className="pin-value" style={{ fontSize: '1.25rem', letterSpacing: '0.1em' }}>{roomName || '----'}</div>
+              <span className="pin-hint">Connessione automatica al direttore</span>
             </div>
           )}
           <ConnectionIndicator connectionStatus={connectionStatus || (isConnected ? 'connected' : roomName ? 'waiting' : 'disconnected')} connectionError={connectionError} peerId={peerId} />

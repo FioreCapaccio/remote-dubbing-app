@@ -894,7 +894,7 @@ const App = () => {
     }
   }, [remoteStream, selectedOutput]);
 
-  if (view === 'landing') return <LandingPage onLaunch={(role) => { setInitialRole(role); setView('app'); }} />;
+  if (view === 'landing') return <LandingPage onLaunch={(role, pin) => { setInitialRole(role); if (pin) setRoomName(pin); setView('app'); }} />;
 
   return (
     <ErrorBoundary>

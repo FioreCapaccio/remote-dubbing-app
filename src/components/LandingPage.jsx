@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { Mic, Zap, Headphones, Film, BookOpen, User, Users, Lock } from 'lucide-react';
+import { Mic, Zap, Headphones, Film, BookOpen, User, Users, Lock, KeyRound } from 'lucide-react';
 
-const DIRECTOR_PASSWORD = 'vocal2026'; // Password predefinita per il direttore
+const DIRECTOR_PASSWORD = 'Flower'; // Password predefinita per il direttore
 
 const LandingPage = ({ onLaunch }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState(false);
+  
+  // Actor PIN state
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [actorPin, setActorPin] = useState('');
+  const [pinError, setPinError] = useState(false);
 
   const handleDirectorClick = () => {
     setShowPasswordModal(true);
@@ -28,6 +33,30 @@ const LandingPage = ({ onLaunch }) => {
     setShowPasswordModal(false);
     setPassword('');
     setPasswordError(false);
+  };
+  
+  // Actor PIN handlers
+  const handleActorClick = () => {
+    setShowPinModal(true);
+    setActorPin('');
+    setPinError(false);
+  };
+  
+  const handlePinSubmit = (e) => {
+    e.preventDefault();
+    // Validate PIN: must be 4 digits
+    if (/^\d{4}$/.test(actorPin)) {
+      setShowPinModal(false);
+      onLaunch('guest', actorPin);
+    } else {
+      setPinError(true);
+    }
+  };
+  
+  const handleClosePinModal = () => {
+    setShowPinModal(false);
+    setActorPin('');
+    setPinError(false);
   };
 
   return (
@@ -68,6 +97,48 @@ const LandingPage = ({ onLaunch }) => {
           </div>
         </div>
       )}
+      
+      {/* Actor PIN Modal */}
+      {showPinModal && (
+        <div className="modal-overlay" onClick={handleClosePinModal}>
+          <div className="password-modal" onClick={e => e.stopPropagation()}>
+            <div className="password-modal-header">
+              <KeyRound size={24} />
+              <h2>Accesso Attore</h2>
+            </div>
+            <p className="password-modal-desc">Inserisci il PIN a 4 cifre fornito dal direttore</p>
+            <form onSubmit={handlePinSubmit}>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
+                value={actorPin}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                  setActorPin(val);
+                  setPinError(false);
+                }}
+                placeholder="0000"
+                className={pinError ? 'error' : ''}
+                autoFocus
+                style={{ textAlign: 'center', letterSpacing: '0.3em', fontSize: '1.5rem', fontWeight: 800 }}
+              />
+              {pinError && (
+                <span className="password-error">Inserisci un PIN valido (4 cifre)</span>
+              )}
+              <div className="password-modal-actions">
+                <button type="button" className="btn-secondary" onClick={handleClosePinModal}>
+                  Annulla
+                </button>
+                <button type="submit" className="btn-primary">
+                  Connetti
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section className="hero">
@@ -96,7 +167,7 @@ const LandingPage = ({ onLaunch }) => {
               </button>
               <button 
                 className="role-card"
-                onClick={() => onLaunch('guest')}
+                onClick={handleActorClick}
               >
                 <User size={32} />
                 <span className="role-card-title">ATTORE / DOPPIATORE</span>
