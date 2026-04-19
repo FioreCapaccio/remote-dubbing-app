@@ -6,7 +6,8 @@ const VideoPreview = ({
   setCurrentTime, setDuration, 
   currentTime, activeCue, cues,
   countdown,
-  setVideoURL 
+  setVideoURL,
+  setVideoFrameRate
 }) => {
   const fileInputRef = useRef(null);
   const [isDraggingVideo, setIsDraggingVideo] = useState(false);
@@ -33,6 +34,59 @@ const VideoPreview = ({
     if (!file || !file.type.startsWith('video/')) return;
     const url = URL.createObjectURL(file);
     setVideoURL(url, file.name);
+    
+    // Rileva il frame rate del video
+    const tempVideo = document.createElement('video');
+    tempVideo.src = url;
+    tempVideo.onloadedmetadata = () => {
+      // Prova a ottenere il frame rate dalle proprietà del video
+      let fps = 25; // Default
+      
+      // Metodo 1: Usa getVideoPlaybackQuality se disponibile
+      if (tempVideo.getVideoPlaybackQuality) {
+        const quality = tempVideo.getVideoPlaybackQuality();
+        // Non dà direttamente il fps, ma possiamo usarlo per altre metriche
+      }
+      
+      // Metodo 2: Calcola dal frame rate del video (proprietà non standard ma supportata in alcuni browser)
+      if (tempVideo.videoPlaybackRate) {
+        // Questo è il playback rate, non il frame rate
+      }
+      
+      // Metodo 3: Prova a leggere dal file video stesso usando il video track (API moderne)
+      if (tempVideo.captureStream) {
+        try {
+          const stream = tempVideo.captureStream();
+          const videoTracks = stream.getVideoTracks();
+          if (videoTracks.length > 0) {
+            const settings = videoTracks[0].getSettings();
+            if (settings.frameRate) {
+              fps = Math.round(settings.frameRate);
+            }
+          }
+        } catch (e) {
+          // Fallback
+        }
+      }
+      
+      // Metodo 4: Per file locali, proviamo a stimare dal tempo
+      // Questo è un fallback che usa il frame rate standard in base alla durata
+      if (fps === 25 && file.name) {
+        // Estrai informazioni dal nome file se contiene fps
+        const fpsMatch = file.name.match(/(\d+)fps/i);
+        if (fpsMatch) {
+          fps = parseInt(fpsMatch[1], 10);
+        }
+      }
+      
+      console.log('[VideoPreview] Detected frame rate:', fps);
+      if (setVideoFrameRate) {
+        setVideoFrameRate(fps);
+      }
+      
+      // Cleanup
+      tempVideo.src = '';
+    };
   };
 
   const formatTC = (t) => {

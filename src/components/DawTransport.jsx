@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { Play, Pause, Square, ZoomIn, ZoomOut, Save, FolderOpen, FilePlus, FileSpreadsheet, Upload } from 'lucide-react';
 import AdrImportWizard from './AdrImportWizard';
 
-const toSMPTE = (t) => {
+const toSMPTE = (t, fps = 25) => {
   const safe = isFinite(t) && t >= 0 ? t : 0;
   const h  = Math.floor(safe / 3600);
   const m  = Math.floor((safe % 3600) / 60);
   const s  = Math.floor(safe % 60);
-  const f  = Math.floor((safe % 1) * 25);
+  const f  = Math.floor((safe % 1) * fps);
   return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}:${f.toString().padStart(2,'0')}`;
 };
 
@@ -21,11 +21,12 @@ const DawTransport = ({
   onLoadProject,
   onNewProject,
   onImportCues,
-  sessionRole
+  sessionRole,
+  videoFrameRate = 25
 }) => {
   const [showImportWizard, setShowImportWizard] = useState(false);
-  const tc      = toSMPTE(currentTime);
-  const totalTc = toSMPTE(duration || 0);
+  const tc      = toSMPTE(currentTime, videoFrameRate);
+  const totalTc = toSMPTE(duration || 0, videoFrameRate);
   const isDirector = sessionRole === 'host';
 
   return (
@@ -100,7 +101,7 @@ const DawTransport = ({
       {/* CENTER: Timecode */}
       <div className="transport-center">
         <div className="tc-display-block tc-display-block--enhanced">
-          <div className="tc-smpte-label">TC 25fps</div>
+          <div className="tc-smpte-label">TC {videoFrameRate}fps</div>
           <div className="tc-display">{tc}</div>
           <div className="tc-duration">/ {totalTc}</div>
         </div>

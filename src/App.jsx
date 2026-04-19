@@ -45,6 +45,7 @@ const App = () => {
   // Application State
   const [videoURL, setVideoURL] = useState(null);
   const [videoFileName, setVideoFileName] = useState(null);
+  const [videoFrameRate, setVideoFrameRate] = useState(25); // Frame rate rilevato dal video
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -1102,6 +1103,7 @@ const App = () => {
             onNewProject={handleNewProject}
             onImportCues={handleImportCues}
             sessionRole={sessionRole}
+            videoFrameRate={videoFrameRate}
           />
           <VideoPreview 
             videoHeight={videoHeight} videoURL={videoURL} videoRef={videoRef}
@@ -1110,6 +1112,7 @@ const App = () => {
             activeCue={activeCue}
             cues={cues}
             setVideoURL={(url, name) => { setVideoURL(url); if (name) setVideoFileName(name); }}
+            setVideoFrameRate={setVideoFrameRate}
           />
           <div className="layout-divider-h" onMouseDown={(e) => { e.preventDefault(); isResizingVertical.current = true; document.body.style.cursor = 'row-resize'; }} />
           <DawTimeline 
