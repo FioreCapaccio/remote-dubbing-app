@@ -2,8 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 
 /**
  * Hook per la registrazione audio:
- * - Il direttore (host) può registrare dallo stream remoto (microfono del doppiatore)
- * - Il doppiatore (guest) può registrare localmente e inviare il blob al direttore
+ * - Il direttore (host) NON registra dallo stream remoto. Invia solo comandi all'attore e aspetta il blob.
+ * - Il doppiatore (guest) registra localmente e invia il blob al direttore
  */
 export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected = false, remoteStream = null, role = 'host', onBlobReady = null) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -269,7 +269,7 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
     }
   }, [role, settings.sampleRate, selectedDevice, onBlobReady]);
 
-  // Avvia registrazione - host registra da stream remoto, guest registra localmente
+  // Avvia registrazione - SOLO guest registra localmente. Host NON registra.
   const startRecording = useCallback((trackId = 'track-1') => {
     if (role === 'guest') {
       // Il guest registra localmente
@@ -277,103 +277,30 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       return;
     }
 
-    // Host: registra dallo stream remoto (codice esistente)
-    try {
-      if (!remoteStream) {
-        alert("Remote stream not available. Make sure the dubber is connected.");
-        return;
-      }
-      
-      console.log('[AudioRecorder] Starting recording from REMOTE stream (dubber mic)');
-      setRecordingSource('remote');
-      currentTrackIdRef.current = trackId;
-      
-      const supportedMimeTypes = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/mp4',
-        'audio/mp4;codecs=mp4a.40.2',
-        'audio/ogg;codecs=opus',
-        'audio/ogg',
-        'audio/wav'
-      ];
-      
-      let mimeType = '';
-      for (const type of supportedMimeTypes) {
-        if (MediaRecorder.isTypeSupported(type)) {
-          try {
-            const testRecorder = new MediaRecorder(remoteStream, { mimeType: type });
-            testRecorder.ondataavailable = () => {};
-            mimeType = type;
-            console.log('[AudioRecorder] Found supported mimeType:', type);
-            break;
-          } catch (e) {
-            console.log('[AudioRecorder] MimeType', type, 'not supported for this stream:', e.message);
-          }
-        }
-      }
-
-      if (!mimeType) {
-        console.error('[AudioRecorder] No supported mimeType found for remote stream recording');
-        alert('Errore: Il tuo browser non supporta la registrazione audio da stream remoto.\n\nProva a usare Chrome o Firefox aggiornati.');
-        return;
-      }
-
-      mimeTypeRef.current = mimeType;
-
-      const recorderOptions = {
-        mimeType,
-        audioBitsPerSecond: 128000
-      };
-
-      const mediaRecorder = new MediaRecorder(remoteStream, recorderOptions);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
-      };
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        const url = URL.createObjectURL(audioBlob);
-        
-        const newTake = {
-          id: Date.now(),
-          trackId: currentTrackIdRef.current,
-          url,
-          blob: audioBlob,
-          timestamp: new Date().toLocaleTimeString(),
-          sourceType: 'remote'
-        };
-        setTakes((prev) => [newTake, ...prev]);
-      };
-
-      mediaRecorder.onerror = (event) => {
-        console.error('[AudioRecorder] MediaRecorder error:', event);
-        alert('Errore durante la registrazione: ' + (event.message || 'Errore sconosciuto'));
-        setIsRecording(false);
-      };
-
-      mediaRecorder.start(100);
-      setIsRecording(true);
-      console.log('[AudioRecorder] Recording started successfully from remote stream');
-    } catch (err) {
-      console.error('[AudioRecorder] Error starting recording:', err);
-      if (err.name === 'NotSupportedError') {
-        alert('Errore: Il codec audio non è supportato per la registrazione da stream remoto.\n\nProva a usare Chrome o Firefox aggiornati, o verifica che il doppiatore sia connesso.');
-      } else {
-        alert('Errore durante l\'avvio della registrazione: ' + err.message);
-      }
-    }
+    // Host: NON registra dallo stream remoto. 
+    // Solo imposta lo stato isRecording=true per mostrare l'indicatore visivo.
+    // Il blob arriverà dall'attore tramite handleAudioBlobFromGuest in App.jsx
+    console.log('[AudioRecorder] Host: recording state activated (waiting for blob from guest)');
+    setRecordingSource('remote');
+    currentTrackIdRef.current = trackId;
+    setIsRecording(true);
   }, [remoteStream, role, startLocalRecording]);
 
   const stopRecording = useCallback(() => {
+    if (role === 'host') {
+      // Host: semplicemente ferma lo stato di registrazione
+      // Non c'è MediaRecorder da fermare perché il host non registra
+      console.log('[AudioRecorder] Host: recording state deactivated');
+      setIsRecording(false);
+      return;
+    }
+
+    // Guest: ferma il MediaRecorder locale
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
-  }, [isRecording]);
+  }, [isRecording, role]);
 
   return {
     isRecording,
