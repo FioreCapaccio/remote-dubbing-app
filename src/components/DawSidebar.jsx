@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Settings2, Mic, Plus, Trash2, Edit2, X,
   Activity, Download, Copy, Check as CheckIcon, Wifi, WifiOff, Clock,
