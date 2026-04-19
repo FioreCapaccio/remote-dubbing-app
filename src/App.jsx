@@ -1180,6 +1180,7 @@ const App = () => {
             internalTimeRef={internalTimeRef}
             isRecording={isRecording}
             recordingSource={recordingSource}
+            sessionRole={sessionRole}
           />
         </main>
         <audio ref={remoteAudioRef} style={{ display: 'none' }} />

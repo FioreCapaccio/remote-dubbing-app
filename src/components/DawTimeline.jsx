@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Circle, Trash2 } from 'lucide-react';
+import { Plus, Circle, Trash2, X } from 'lucide-react';
 import WaveformOverlay from './WaveformOverlay';
-import TrackVolumeMeter from './TrackVolumeMeter';
+import VintageVUMeter from './VintageVUMeter';
 import { useTrackMeters } from '../hooks/useTrackMeters';
 
 const STATUS_COLORS = {
@@ -20,7 +20,8 @@ const DawTimeline = ({
   videoURL, currentTime, activeCue,
   internalTimeRef,
   isRecording,
-  recordingSource
+  recordingSource,
+  sessionRole // Aggiunto per sapere se siamo actor o director
 }) => {
   const [contextMenu, setContextMenu] = useState(null); // { clipId, trackId, x, y }
   const [draggingCue, setDraggingCue] = useState(null); // { cueId, startX, startTimeIn, previewTimeIn }
@@ -31,7 +32,7 @@ const DawTimeline = ({
   const lastTouchTimeRef = useRef(0);
 
   // Hook per monitorare i livelli audio delle tracce
-  const trackLevels = useTrackMeters(tracks, videoRef);
+  const trackLevels = useTrackMeters(tracks, videoRef, isRecording, recordingSource);
 
   // Close context menu when clicking elsewhere
   useEffect(() => {
@@ -195,6 +196,21 @@ const DawTimeline = ({
     if (selectedTrackId === trackId) {
       setSelectedTrackId(null);
     }
+  };
+
+  // Funzione per cancellare una clip (solo per l'attore sulla propria registrazione)
+  const deleteClip = (trackId, clipId) => {
+    setTracks(prev => prev.map(t => {
+      if (t.id !== trackId) return t;
+      return {
+        ...t,
+        clips: t.clips.filter(c => c.id !== clipId)
+      };
+    }));
+    if (selectedClipId === clipId) {
+      setSelectedClipId(null);
+    }
+    setContextMenu(null);
   };
 
   const handleSplitClip = (trackId, clip) => {
@@ -397,7 +413,7 @@ const DawTimeline = ({
               />
               {/* Volume Meter per tracce audio */}
               {track.type === 'audio' && (
-                <TrackVolumeMeter dbLevel={trackLevels[track.id] ?? -60} />
+                <VintageVUMeter dbLevel={trackLevels[track.id] ?? -60} trackId={track.id} />
               )}
             </div>
             <div className="track-lane-cell">
@@ -439,6 +455,19 @@ const DawTimeline = ({
                         <span className="clip-gain-badge">{Math.round(clip.gain * 100)}%</span>
                       )}
                     </div>
+                    {/* Icona delete per l'attore sulla propria registrazione */}
+                    {sessionRole === 'guest' && clip.sourceType === 'local' && (
+                      <button
+                        className="clip-delete-btn"
+                        title="Delete this recording"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteClip(track.id, clip.id);
+                        }}
+                      >
+                        <X size={10} />
+                      </button>
+                    )}
                     <audio id={clip.id} src={clip.url} preload="auto" style={{ display: 'none' }} />
                     <WaveformOverlay url={clip.url} mini color="var(--accent)" height={90} pxPerSec={zoomLevel} />
                   </div>
