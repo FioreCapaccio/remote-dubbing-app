@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Download, Upload, Tag, Folder, Menu, X, Users, Lock } from 'lucide-react';
+import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Upload, Tag, Folder, Menu, X, Users, Lock } from 'lucide-react';
 
 // Hooks
 import { useAudioRecorder } from './hooks/useAudioRecorder';
@@ -15,7 +15,7 @@ import VideoPreview from './components/VideoPreview';
 
 // Utils
 import { renderMixdown } from './utils/audioExport';
-import { saveProject, loadProject, listProjects, deleteProject, exportProjectToFile, importProjectFromFile, pickDirectory, isFileSystemAccessSupported } from './utils/projectStorage';
+import { saveProject, loadProject, listProjects, deleteProject, exportProjectToFile, importProjectFromFile, isFileSystemAccessSupported } from './utils/projectStorage';
 
 // Styles
 import './index.css';
@@ -121,12 +121,6 @@ const App = () => {
   const [projectCategory, setProjectCategory] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportFilename, setExportFilename] = useState('');
-  const [exportDirectoryHandle, setExportDirectoryHandle] = useState(null);
-  const [exportDirectoryName, setExportDirectoryName] = useState('');
-  const [saveDirectoryHandle, setSaveDirectoryHandle] = useState(null);
-  const [saveDirectoryName, setSaveDirectoryName] = useState('');
 
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -706,8 +700,6 @@ const App = () => {
     setProjectName(videoFileName ? videoFileName.replace(/\.[^/.]+$/, '') : 'Untitled Project');
     setProjectCategory('');
     setProjectDescription('');
-    setSaveDirectoryHandle(null);
-    setSaveDirectoryName('');
     setShowProjectModal(true);
   }, [videoFileName]);
 
@@ -730,91 +722,24 @@ const App = () => {
         description: projectDescription.trim()
       };
       
-      // Salva sempre in IndexedDB come backup/indice
+      // 1. Salva sempre in IndexedDB come backup/indice
       const savedProject = await saveProject(name, state, options);
       
-      // Se è stata selezionata una cartella, salva anche come file JSON
-      if (saveDirectoryHandle) {
-        const filename = `${name.replace(/[^a-zA-Z0-9_-]/g, '_')}_VocalSync.json`;
-        await exportProjectToFile(name, state, {
-          ...options,
-          filename,
-          directoryHandle: saveDirectoryHandle
-        });
-        alert(`Project "${name}" saved to folder "${saveDirectoryName}" and indexed!`);
-      } else {
-        alert(`Project "${name}" saved successfully!`);
-      }
+      // 2. Esporta sempre come file JSON per backup/condivisione
+      const filename = `${name.replace(/[^a-zA-Z0-9_-]/g, '_')}_VocalSync.json`;
+      await exportProjectToFile(name, state, {
+        ...options,
+        filename
+        // directoryHandle non specificato = download automatico
+      });
       
+      alert(`Project "${name}" saved to IndexedDB and exported as "${filename}"!`);
       setShowProjectModal(false);
     } catch (err) {
       console.error('Save failed:', err);
       alert('Failed to save project. Please try again.');
     }
-  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription, saveDirectoryHandle, saveDirectoryName]);
-
-  const handleExportProject = useCallback(async () => {
-    const name = projectName || videoFileName?.replace(/\.[^/.]+$/, '') || 'Untitled Project';
-    setExportFilename(`${name.replace(/[^a-zA-Z0-9_-]/g, '_')}_VocalSync.json`);
-    setExportDirectoryHandle(null);
-    setExportDirectoryName('');
-    setShowExportModal(true);
-  }, [projectName, videoFileName]);
-
-  const handleConfirmExport = useCallback(async () => {
-    const name = projectName || videoFileName?.replace(/\.[^/.]+$/, '') || 'Untitled Project';
-    try {
-      const state = {
-        cues,
-        tracks,
-        audioSettings,
-        videoFileName
-      };
-      const options = {
-        category: projectCategory,
-        description: projectDescription,
-        filename: exportFilename,
-        directoryHandle: exportDirectoryHandle
-      };
-      await exportProjectToFile(name, state, options);
-      setShowExportModal(false);
-      
-      if (exportDirectoryHandle) {
-        alert(`Project exported as "${exportFilename}" to folder "${exportDirectoryName}"`);
-      } else {
-        alert(`Project exported as "${exportFilename}"`);
-      }
-    } catch (err) {
-      console.error('Export failed:', err);
-      alert('Failed to export project. Please try again.');
-    }
-  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription, exportFilename, exportDirectoryHandle, exportDirectoryName]);
-
-  const handlePickSaveDirectory = useCallback(async () => {
-    try {
-      const dirHandle = await pickDirectory();
-      if (dirHandle) {
-        setSaveDirectoryHandle(dirHandle);
-        setSaveDirectoryName(dirHandle.name);
-      }
-    } catch (err) {
-      console.error('Failed to pick directory:', err);
-      alert('Failed to select directory. Please try again.');
-    }
-  }, []);
-
-  const handlePickExportDirectory = useCallback(async () => {
-    try {
-      const dirHandle = await pickDirectory();
-      if (dirHandle) {
-        setExportDirectoryHandle(dirHandle);
-        setExportDirectoryName(dirHandle.name);
-      }
-    } catch (err) {
-      console.error('Failed to pick directory:', err);
-      alert('Failed to select directory. Please try again.');
-    }
-  }, []);
+  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription]);
 
   const handleImportProjectFromFile = useCallback(async (file) => {
     try {
@@ -1157,7 +1082,6 @@ const App = () => {
             onSaveProject={handleSaveProject}
             onLoadProject={handleLoadProjectClick}
             onNewProject={handleNewProject}
-            onExportProject={handleExportProject}
             onImportCues={handleImportCues}
             sessionRole={sessionRole}
           />
@@ -1378,94 +1302,11 @@ const App = () => {
                     rows={3}
                   />
                 </div>
-
-                {isFileSystemAccessSupported() && (
-                  <div className="project-form-field">
-                    <label><HardDrive size={14} /> Save Location</label>
-                    <div className="directory-picker">
-                      <button 
-                        className="btn-secondary btn-pick-dir"
-                        onClick={handlePickSaveDirectory}
-                      >
-                        <Folder size={16} /> 
-                        {saveDirectoryHandle ? 'Change Folder' : 'Choose Folder'}
-                      </button>
-                      {saveDirectoryHandle && (
-                        <span className="selected-dir">
-                          <Folder size={14} /> {saveDirectoryName}
-                        </span>
-                      )}
-                    </div>
-                    <span className="field-hint">
-                      {saveDirectoryHandle 
-                        ? 'Project will be saved as JSON file in the selected folder and indexed'
-                        : 'Click "Choose Folder" to also save as a JSON file, or project will be indexed only'}
-                    </span>
-                  </div>
-                )}
               </div>
 
               <div className="modal-actions">
                 <button className="btn-close btn-secondary" onClick={() => setShowProjectModal(false)}>CANCEL</button>
                 <button className="btn-close" onClick={handleConfirmSaveProject}>SAVE</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Export to File Modal */}
-        {showExportModal && (
-          <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
-            <div className="settings-modal project-modal" onClick={e => e.stopPropagation()}>
-              <h2><Download /> EXPORT PROJECT</h2>
-              
-              <div className="project-form">
-                <div className="project-form-field">
-                  <label>Filename</label>
-                  <input 
-                    type="text" 
-                    value={exportFilename}
-                    onChange={(e) => setExportFilename(e.target.value)}
-                    placeholder="project_name_VocalSync.json"
-                    autoFocus
-                  />
-                </div>
-                
-                {isFileSystemAccessSupported() && (
-                  <div className="project-form-field">
-                    <label>Save Location</label>
-                    <div className="directory-picker">
-                      <button 
-                        className="btn-secondary btn-pick-dir"
-                        onClick={handlePickExportDirectory}
-                      >
-                        <Folder size={16} /> 
-                        {exportDirectoryHandle ? 'Change Folder' : 'Choose Folder'}
-                      </button>
-                      {exportDirectoryHandle && (
-                        <span className="selected-dir">
-                          <Folder size={14} /> {exportDirectoryName}
-                        </span>
-                      )}
-                    </div>
-                    <span className="field-hint">
-                      {exportDirectoryHandle 
-                        ? 'File will be saved to the selected folder'
-                        : 'Click "Choose Folder" to select where to save, or file will download to Downloads'}
-                    </span>
-                  </div>
-                )}
-                
-                {!isFileSystemAccessSupported() && (
-                  <div className="project-form-field">
-                    <span className="field-hint">The file will be saved to your Downloads folder</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="modal-actions">
-                <button className="btn-close btn-secondary" onClick={() => setShowExportModal(false)}>CANCEL</button>
-                <button className="btn-close" onClick={handleConfirmExport}>EXPORT</button>
               </div>
             </div>
           </div>
