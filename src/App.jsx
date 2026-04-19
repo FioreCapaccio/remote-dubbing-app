@@ -130,6 +130,7 @@ const App = () => {
 
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
+  const monitorAudioRef = useRef(null); // Audio element per monitoraggio realtime microfono attore
   const sendCommandRef = useRef(null);
   const startRecordingRef = useRef(null);
   const stopRecordingRef = useRef(null);
@@ -1036,13 +1037,25 @@ const App = () => {
     }
   };
 
+  // Effect per gestire il monitoraggio realtime del microfono dell'attore durante la registrazione
   useEffect(() => {
-    if (remoteAudioRef.current && remoteStream) {
-      remoteAudioRef.current.srcObject = remoteStream;
-      if (remoteAudioRef.current.setSinkId) remoteAudioRef.current.setSinkId(selectedOutput);
-      remoteAudioRef.current.play().catch(() => {});
+    // Solo il direttore (host) ha bisogno di monitorare l'attore durante la registrazione
+    if (sessionRole !== 'host') return;
+    
+    if (isRecording && remoteStream && monitorAudioRef.current) {
+      // Attiva monitoraggio: riproduci lo stream remoto (microfono attore)
+      console.log('[App] Activating actor microphone monitoring during recording');
+      monitorAudioRef.current.srcObject = remoteStream;
+      monitorAudioRef.current.play().catch(err => {
+        console.warn('[App] Failed to start monitoring playback:', err);
+      });
+    } else if (!isRecording && monitorAudioRef.current) {
+      // Disattiva monitoraggio quando la registrazione finisce
+      console.log('[App] Deactivating actor microphone monitoring');
+      monitorAudioRef.current.pause();
+      monitorAudioRef.current.srcObject = null;
     }
-  }, [remoteStream, selectedOutput]);
+  }, [isRecording, remoteStream, sessionRole]);
 
   if (view === 'landing') return <LandingPage onLaunch={(role, pin) => { setInitialRole(role); if (pin) setRoomName(pin); setView('app'); }} />;
 
@@ -1149,6 +1162,7 @@ const App = () => {
           />
         </main>
         <audio ref={remoteAudioRef} style={{ display: 'none' }} />
+        <audio ref={monitorAudioRef} style={{ display: 'none' }} />
         {showSettings && (
           <div className="modal-overlay" onClick={() => setShowSettings(false)}>
              <div className="settings-modal" onClick={e => e.stopPropagation()}>
