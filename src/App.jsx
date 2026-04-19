@@ -109,6 +109,10 @@ const App = () => {
   const [countdown, setCountdown] = useState(null);
   const countdownIntervalRef = useRef(null);
 
+  // Recording Status State - per indicatore visivo
+  const [recordingStatus, setRecordingStatus] = useState('idle'); // 'idle' | 'recording' | 'sent' | 'received'
+  const recordingStatusTimerRef = useRef(null);
+
   // Project Management State
   const [savedProjects, setSavedProjects] = useState([]);
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -196,10 +200,14 @@ const App = () => {
     // Questo callback viene chiamato solo dal guest quando finisce la registrazione
     if (sessionRole === 'guest' && sendAudioBlob) {
       console.log('[App] Guest sending recorded blob to host');
+      setRecordingStatus('sent'); // Mostra "File inviato" per l'attore
       sendAudioBlob(blob, {
         ...metadata,
         recordStartTime: recordStartTime.current
       });
+      // Reset dopo 3 secondi
+      if (recordingStatusTimerRef.current) clearTimeout(recordingStatusTimerRef.current);
+      recordingStatusTimerRef.current = setTimeout(() => setRecordingStatus('idle'), 3000);
     }
   }, [sessionRole, sendAudioBlob]);
 
@@ -428,6 +436,7 @@ const App = () => {
       }
       
       stopRecording();
+      setRecordingStatus('idle'); // Reset stato
       if (videoRef.current) videoRef.current.pause();
       else stopInternalPlayhead();
       setIsPlaying(false);
@@ -460,6 +469,9 @@ const App = () => {
       
       // Avvia registrazione locale (host registra da stream remoto, guest registra localmente)
       startRecording(selectedTrackId);
+      
+      // Imposta stato registrazione
+      setRecordingStatus('recording');
       
       if (videoRef.current) {
         requestAnimationFrame(() => {
@@ -507,6 +519,7 @@ const App = () => {
         if (sessionRole === 'guest') {
           console.log('[App] Guest received START_RECORDING command');
           recordStartTime.current = cmd.recordStartTime || internalTimeRef.current;
+          setRecordingStatus('recording'); // Mostra REC lampeggiante per l'attore
           startRecording(cmd.trackId || 'track-1');
         }
         break;
@@ -514,6 +527,7 @@ const App = () => {
         // Comando dal direttore per far fermare la registrazione al guest
         if (sessionRole === 'guest') {
           console.log('[App] Guest received STOP_RECORDING command');
+          setRecordingStatus('idle'); // Nasconde REC
           stopRecording();
         }
         break;
@@ -527,12 +541,16 @@ const App = () => {
         // Host riceve il blob audio dal guest
         if (sessionRole === 'host' && cmd.buffer) {
           console.log('[App] Host received AUDIO_BLOB_DATA');
+          setRecordingStatus('received'); // Mostra "File ricevuto" per il direttore
           const blob = new Blob([cmd.buffer], { type: cmd.mimeType || 'audio/webm' });
           handleAudioBlobFromGuest(blob, {
             trackId: cmd.trackId,
             timestamp: cmd.timestamp,
             sourceType: 'remote'
           });
+          // Reset dopo 3 secondi
+          if (recordingStatusTimerRef.current) clearTimeout(recordingStatusTimerRef.current);
+          recordingStatusTimerRef.current = setTimeout(() => setRecordingStatus('idle'), 3000);
         }
         break;
       case 'COUNTDOWN_START':
@@ -1087,6 +1105,8 @@ const App = () => {
           connections={connections}
           onShowUsers={() => setShowUsersModal(true)}
           onShowPassword={() => setShowPasswordModal(true)}
+          recordingStatus={recordingStatus}
+          isRecording={isRecording}
         />
         <div className="layout-divider-v" onMouseDown={(e) => { e.preventDefault(); isResizingHorizontal.current = true; document.body.style.cursor = 'col-resize'; }} />
         <main className="main-content">

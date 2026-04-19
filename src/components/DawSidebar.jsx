@@ -3,7 +3,7 @@ import {
   Settings2, Mic, Plus, Trash2, Edit2, X,
   Activity, Download, Copy, Check as CheckIcon, Wifi, WifiOff, Clock,
   ChevronLeft, ChevronRight, Film, MessageSquare, Send, ChevronDown, ChevronUp,
-  KeyRound, Users, Lock
+  KeyRound, Users, Lock, Radio, Upload, Download as DownloadIcon
 } from 'lucide-react';
 import VolumeMeter from './VolumeMeter';
 import { renderSingleClip } from '../utils/audioExport';
@@ -142,6 +142,9 @@ const DawSidebar = ({
   connections,
   onShowUsers,
   onShowPassword,
+  // Recording status props
+  recordingStatus,
+  isRecording,
 }) => {
   const isDirector = sessionRole === 'host';
   const isActor = sessionRole === 'guest';
@@ -283,6 +286,31 @@ const DawSidebar = ({
           <h2 className="app-logo"><Activity size={18} /> VOCALSYNC <span className="v-tag">5.0 PRO</span></h2>
           <button className="settings-trigger" onClick={() => setShowSettings(true)}><Settings2 size={16} /></button>
         </div>
+
+        {/* Recording Status Indicator */}
+        {recordingStatus !== 'idle' && (
+          <div className={`recording-status-banner recording-status--${recordingStatus}`}>
+            {recordingStatus === 'recording' && (
+              <>
+                <Radio size={16} className="recording-icon" />
+                <span className="recording-text">REGISTRAZIONE IN CORSO</span>
+                <span className="recording-dot"></span>
+              </>
+            )}
+            {recordingStatus === 'sent' && isActor && (
+              <>
+                <Upload size={16} className="recording-icon" />
+                <span className="recording-text">FILE INVIATO</span>
+              </>
+            )}
+            {recordingStatus === 'received' && isDirector && (
+              <>
+                <DownloadIcon size={16} className="recording-icon" />
+                <span className="recording-text">FILE RICEVUTO</span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Role indicator - read only for both roles */}
         <div className="role-indicator-wrap">
