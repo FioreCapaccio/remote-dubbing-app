@@ -50,7 +50,8 @@ const VintageVUMeter = ({ dbLevel = -60, trackId }) => {
     const height = rect.height;
     const centerX = width / 2;
     const centerY = height - 4;
-    const radius = Math.min(width, height * 2) / 2 - 8;
+    // Assicura che il raggio sia sempre positivo, minimo 10px
+    const radius = Math.max(10, Math.min(width, height * 2) / 2 - 8);
 
     const drawMeter = () => {
       ctx.clearRect(0, 0, width, height);
