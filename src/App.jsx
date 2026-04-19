@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Upload, Tag, Folder, Menu, X, Users, Lock, FolderUp, Mic } from 'lucide-react';
+import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Upload, Tag, Folder, Menu, X, Users, Lock, FolderUp } from 'lucide-react';
 
 // Hooks
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { usePeerSession } from './hooks/usePeerSession';
 import { useAudioAnalysis } from './hooks/useAudioAnalysis';
-import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
@@ -127,11 +126,6 @@ const App = () => {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
   const [saveDirectoryHandle, setSaveDirectoryHandle] = useState(null);
   const [saveDirectoryName, setSaveDirectoryName] = useState('');
-
-  // Speech Recognition State
-  const [selectedTranscriptionLanguage, setSelectedTranscriptionLanguage] = useState('auto');
-  const [pendingMarkersForTranscription, setPendingMarkersForTranscription] = useState(null);
-  const [showTranscriptionModal, setShowTranscriptionModal] = useState(false);
 
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);

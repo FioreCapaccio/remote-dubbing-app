@@ -3,7 +3,7 @@ import {
   Settings2, Mic, Plus, Trash2, Edit2, X,
   Activity, Download, Copy, Check as CheckIcon, Wifi, WifiOff, Clock,
   ChevronLeft, ChevronRight, Film, MessageSquare, Send, ChevronDown, ChevronUp,
-  KeyRound, Users, Radio, Upload, Download as DownloadIcon, Wand2
+  KeyRound, Users, Radio, Upload, Download as DownloadIcon, Wand2, FileSpreadsheet
 } from 'lucide-react';
 import VolumeMeter from './VolumeMeter';
 import { renderSingleClip } from '../utils/audioExport';
@@ -162,6 +162,9 @@ const DawSidebar = ({
   // Per-take export state: { clipId: 'loading' | 'done' | null }
   const [exportingTake, setExportingTake] = useState({});
 
+  // ADR Export state
+  const [isExportingAdr, setIsExportingAdr] = useState(false);
+
   // Cue editing state: { cueId: { field: value } }
   const [editingCue, setEditingCue] = useState(null);
   const [editValues, setEditValues] = useState({});
@@ -280,6 +283,74 @@ const DawSidebar = ({
       console.error('Take export failed:', err);
       setExportingTake(prev => { const n = { ...prev }; delete n[clip.id]; return n; });
     }
+  };
+
+  /**
+   * Esporta i cue ADR in formato CSV compatibile con Excel
+   */
+  const handleExportAdrCues = useCallback(() => {
+    if (cues.length === 0) {
+      alert('Nessun cue da esportare');
+      return;
+    }
+
+    setIsExportingAdr(true);
+
+    try {
+      // Header CSV con BOM per Excel (UTF-8)
+      const BOM = '\uFEFF';
+      const headers = ['Numero', 'Timecode In', 'Timecode Out', 'Personaggio', 'Testo', 'Stato'];
+      
+      // Converti i cue in righe CSV
+      const rows = cues.map((cue, index) => {
+        const timecodeIn = formatTimecode(cue.timeIn);
+        const timecodeOut = cue.timeOut ? formatTimecode(cue.timeOut) : '';
+        const character = (cue.character || '').replace(/"/g, '""');
+        const text = (cue.text || '').replace(/"/g, '""').replace(/\n/g, ' ');
+        const status = STATUS_LABELS[cue.status] || cue.status;
+        
+        return [
+          index + 1,
+          timecodeIn,
+          timecodeOut,
+          `"${character}"`,
+          `"${text}"`,
+          status
+        ].join(';');
+      });
+
+      // Crea il contenuto CSV
+      const csvContent = BOM + headers.join(';') + '\n' + rows.join('\n');
+      
+      // Crea e scarica il file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const projectName = videoFileName ? videoFileName.replace(/\.[^/.]+$/, '') : 'ADR_Session';
+      a.href = url;
+      a.download = `${projectName}_ADR_Cues.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setTimeout(() => setIsExportingAdr(false), 1000);
+    } catch (err) {
+      console.error('ADR export failed:', err);
+      alert('Errore durante l\'esportazione ADR');
+      setIsExportingAdr(false);
+    }
+  }, [cues, videoFileName]);
+
+  /**
+   * Formatta il tempo in formato timecode HH:MM:SS:FF
+   */
+  const formatTimecode = (seconds) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const frames = Math.floor((seconds % 1) * 25); // Assume 25fps
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}:${String(frames).padStart(2, '0')}`;
   };
 
   const myRole = sessionRole === 'host' ? 'director' : 'actor';
@@ -502,6 +573,46 @@ const DawSidebar = ({
                   {analysisStatus}
                 </div>
               </div>
+            )}
+
+            {/* Export ADR Button - mostrato solo se ci sono cue */}
+            {cues.length > 0 && !isAnalyzing && (
+              <button
+                className={`btn-export-adr ${isExportingAdr ? 'exporting' : ''}`}
+                onClick={handleExportAdrCues}
+                disabled={isExportingAdr}
+                title="Esporta cue ADR in formato CSV"
+                style={{
+                  width: '100%',
+                  marginTop: '10px',
+                  padding: '8px 12px',
+                  background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#fff',
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.05em',
+                  cursor: isExportingAdr ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {isExportingAdr ? (
+                  <>
+                    <Activity size={12} className="spin" />
+                    <span>ESPORTAZIONE...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet size={12} />
+                    <span>EXPORT ADR ({cues.length})</span>
+                  </>
+                )}
+              </button>
             )}
           </div>
         )}
