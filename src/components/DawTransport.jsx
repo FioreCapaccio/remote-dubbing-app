@@ -22,11 +22,14 @@ const DawTransport = ({
   onNewProject,
   onImportCues,
   sessionRole,
-  videoFrameRate = 25
+  videoFrameRate = 25,
+  videoStartTimeOffset = 0
 }) => {
   const [showImportWizard, setShowImportWizard] = useState(false);
-  const tc      = toSMPTE(currentTime, videoFrameRate);
-  const totalTc = toSMPTE(duration || 0, videoFrameRate);
+  // Applica l'offset del timecode iniziale al timecode visualizzato
+  const displayTime = currentTime + videoStartTimeOffset;
+  const tc      = toSMPTE(displayTime, videoFrameRate);
+  const totalTc = toSMPTE((duration || 0) + videoStartTimeOffset, videoFrameRate);
   const isDirector = sessionRole === 'host';
 
   return (

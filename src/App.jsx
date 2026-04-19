@@ -46,6 +46,7 @@ const App = () => {
   const [videoURL, setVideoURL] = useState(null);
   const [videoFileName, setVideoFileName] = useState(null);
   const [videoFrameRate, setVideoFrameRate] = useState(25); // Frame rate rilevato dal video
+  const [videoStartTimeOffset, setVideoStartTimeOffset] = useState(0); // Offset timecode iniziale del video
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -1104,6 +1105,7 @@ const App = () => {
             onImportCues={handleImportCues}
             sessionRole={sessionRole}
             videoFrameRate={videoFrameRate}
+            videoStartTimeOffset={videoStartTimeOffset}
           />
           <VideoPreview 
             videoHeight={videoHeight} videoURL={videoURL} videoRef={videoRef}
@@ -1113,6 +1115,9 @@ const App = () => {
             cues={cues}
             setVideoURL={(url, name) => { setVideoURL(url); if (name) setVideoFileName(name); }}
             setVideoFrameRate={setVideoFrameRate}
+            setVideoStartTimeOffset={setVideoStartTimeOffset}
+            videoStartTimeOffset={videoStartTimeOffset}
+            videoFrameRate={videoFrameRate}
           />
           <div className="layout-divider-h" onMouseDown={(e) => { e.preventDefault(); isResizingVertical.current = true; document.body.style.cursor = 'row-resize'; }} />
           <DawTimeline 

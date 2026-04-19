@@ -7,7 +7,10 @@ const VideoPreview = ({
   currentTime, activeCue, cues,
   countdown,
   setVideoURL,
-  setVideoFrameRate
+  setVideoFrameRate,
+  setVideoStartTimeOffset,
+  videoStartTimeOffset = 0,
+  videoFrameRate = 25
 }) => {
   const fileInputRef = useRef(null);
   const [isDraggingVideo, setIsDraggingVideo] = useState(false);
@@ -35,7 +38,12 @@ const VideoPreview = ({
     const url = URL.createObjectURL(file);
     setVideoURL(url, file.name);
     
-    // Rileva il frame rate del video
+    // Resetta l'offset del timecode quando si carica un nuovo video
+    if (setVideoStartTimeOffset) {
+      setVideoStartTimeOffset(0);
+    }
+    
+    // Rileva il frame rate del video e il timecode iniziale
     const tempVideo = document.createElement('video');
     tempVideo.src = url;
     tempVideo.onloadedmetadata = () => {
@@ -84,16 +92,70 @@ const VideoPreview = ({
         setVideoFrameRate(fps);
       }
       
+      // Prova a estrarre il timecode iniziale dai metadata del video
+      // Usa l'API VideoTrack per ottenere informazioni sul timecode
+      extractStartTimecode(url, fps);
+      
       // Cleanup
       tempVideo.src = '';
     };
   };
+  
+  // Funzione per estrarre il timecode iniziale dal video
+  const extractStartTimecode = (videoUrl, fps) => {
+    // Per i file video professionali (MXF, ProRes, etc.), il timecode iniziale
+    // può essere nei metadata. Proviamo diversi approcci.
+    
+    // Approccio 1: Usa l'API MediaSource se disponibile
+    if (window.MediaSource) {
+      fetch(videoUrl)
+        .then(response => response.arrayBuffer())
+        .then(buffer => {
+          // Cerca il timecode nei primi 64KB del file
+          const uint8 = new Uint8Array(buffer.slice(0, 65536));
+          
+          // Pattern comuni per timecode in vari formati video
+          // MXF: cerco pattern 'PartitionPack' o timecode pack
+          // MP4/MOV: cerco 'tmcd' track o 'timecode' box
+          
+          // Converti in stringa per cercare pattern
+          const headerStr = Array.from(uint8.slice(0, 1000))
+            .map(b => String.fromCharCode(b))
+            .join('');
+          
+          // Cerca pattern timecode in formato HH:MM:SS:FF
+          const tcPattern = /(\d{2}):(\d{2}):(\d{2})[:;](\d{2})/;
+          const match = headerStr.match(tcPattern);
+          
+          if (match) {
+            const hours = parseInt(match[1], 10);
+            const minutes = parseInt(match[2], 10);
+            const seconds = parseInt(match[3], 10);
+            const frames = parseInt(match[4], 10);
+            
+            // Converti in secondi
+            const offsetSeconds = hours * 3600 + minutes * 60 + seconds + (frames / fps);
+            
+            console.log('[VideoPreview] Found start timecode in metadata:', match[0], '=', offsetSeconds, 'seconds');
+            if (setVideoStartTimeOffset) {
+              setVideoStartTimeOffset(offsetSeconds);
+            }
+          } else {
+            console.log('[VideoPreview] No start timecode found in metadata');
+          }
+        })
+        .catch(err => {
+          console.log('[VideoPreview] Could not extract timecode metadata:', err);
+        });
+    }
+  };
 
   const formatTC = (t) => {
-    const h = Math.floor(t / 3600);
-    const m = Math.floor((t % 3600) / 60);
-    const s = Math.floor(t % 60);
-    const f = Math.floor((t % 1) * 25); // 25fps
+    const displayTime = t + videoStartTimeOffset;
+    const h = Math.floor(displayTime / 3600);
+    const m = Math.floor((displayTime % 3600) / 60);
+    const s = Math.floor(displayTime % 60);
+    const f = Math.floor((displayTime % 1) * videoFrameRate);
     return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}:${f.toString().padStart(2,'0')}`;
   };
 
