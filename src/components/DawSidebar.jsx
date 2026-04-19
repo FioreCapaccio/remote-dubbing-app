@@ -3,7 +3,7 @@ import {
   Settings2, Mic, Plus, Trash2, Edit2, X,
   Activity, Download, Copy, Check as CheckIcon, Wifi, WifiOff, Clock,
   ChevronLeft, ChevronRight, Film, MessageSquare, Send, ChevronDown, ChevronUp,
-  KeyRound, Users, Lock, Radio, Upload, Download as DownloadIcon
+  KeyRound, Users, Radio, Upload, Download as DownloadIcon
 } from 'lucide-react';
 import VolumeMeter from './VolumeMeter';
 import { renderSingleClip } from '../utils/audioExport';
@@ -141,7 +141,6 @@ const DawSidebar = ({
   // User management props
   connections,
   onShowUsers,
-  onShowPassword,
   // Recording status props
   recordingStatus,
   isRecording,
@@ -341,7 +340,7 @@ const DawSidebar = ({
           <ConnectionIndicator connectionStatus={connectionStatus || (isConnected ? 'connected' : roomName ? 'waiting' : 'disconnected')} connectionError={connectionError} peerId={peerId} />
         </div>
         
-        {/* Director Controls - Users & Password */}
+        {/* Director Controls - Users */}
         {isDirector && (
           <div className="director-controls" style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
             <button 
@@ -351,14 +350,6 @@ const DawSidebar = ({
             >
               <Users size={12} />
               USERS {connections?.length > 0 && `(${connections.length})`}
-            </button>
-            <button 
-              className="btn-project" 
-              onClick={onShowPassword}
-              style={{ flex: 1, fontSize: '0.65rem' }}
-            >
-              <Lock size={12} />
-              PASSWORD
             </button>
           </div>
         )}

@@ -1144,7 +1144,6 @@ const App = () => {
           sessionPin={sessionPin}
           connections={connections}
           onShowUsers={() => setShowUsersModal(true)}
-          onShowPassword={() => setShowPasswordModal(true)}
           recordingStatus={recordingStatus}
           isRecording={isRecording}
         />
@@ -1194,7 +1193,7 @@ const App = () => {
         {showSettings && (
           <div className="modal-overlay" onClick={() => setShowSettings(false)}>
              <div className="settings-modal" onClick={e => e.stopPropagation()}>
-                <h2><Settings2 /> RECORDING PARAMETERS</h2>
+                <h2><Settings2 /> IMPOSTAZIONI</h2>
                 <div className="settings-grid">
                    <div className="setting-item">
                       <label>Sample Rate</label>
@@ -1228,6 +1227,23 @@ const App = () => {
                       </select>
                    </div>
                 </div>
+                {sessionRole === 'host' && (
+                  <>
+                    <h2 style={{ marginTop: '1.5rem' }}><Lock /> PASSWORD DIRETTORE</h2>
+                    <div className="settings-grid">
+                       <div className="setting-item" style={{ flexDirection: 'row', alignItems: 'center', gap: '12px' }}>
+                          <button 
+                            className="btn-close" 
+                            onClick={() => setShowPasswordModal(true)}
+                            style={{ fontSize: '0.75rem', padding: '8px 16px' }}
+                          >
+                            CAMBIA PASSWORD
+                          </button>
+                          <span className="field-hint" style={{ margin: 0 }}>Modifica la password di accesso per il direttore</span>
+                       </div>
+                    </div>
+                  </>
+                )}
                 <div className="modal-actions"><button className="btn-close" onClick={() => setShowSettings(false)}>DONE</button></div>
              </div>
           </div>
