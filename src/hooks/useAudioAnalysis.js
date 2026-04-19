@@ -159,7 +159,7 @@ export function useAudioAnalysis(options = {}) {
       setAnalysisProgress(100);
       setAnalysisStatus(`Analisi completata: ${phraseStarts.length} frasi rilevate`);
 
-      // Callback con i marker creati per la trascrizione
+      // Callback con i marker creati (senza trascrizione)
       if (onMarkersCreated && phraseStarts.length > 0) {
         const markers = phraseStarts.map((time, index) => ({
           id: Date.now() + index,
