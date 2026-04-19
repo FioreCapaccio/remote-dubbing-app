@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Upload, Tag, Folder, Menu, X, Users, Lock, FolderUp } from 'lucide-react';
+import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Upload, Tag, Folder, Menu, X, Users, Lock, FolderUp, Mic } from 'lucide-react';
 
 // Hooks
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { usePeerSession } from './hooks/usePeerSession';
 import { useAudioAnalysis } from './hooks/useAudioAnalysis';
+import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
@@ -127,6 +128,11 @@ const App = () => {
   const [saveDirectoryHandle, setSaveDirectoryHandle] = useState(null);
   const [saveDirectoryName, setSaveDirectoryName] = useState('');
 
+  // Speech Recognition State
+  const [selectedTranscriptionLanguage, setSelectedTranscriptionLanguage] = useState('auto');
+  const [pendingMarkersForTranscription, setPendingMarkersForTranscription] = useState(null);
+  const [showTranscriptionModal, setShowTranscriptionModal] = useState(false);
+
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const monitorAudioRef = useRef(null); // Audio element per monitoraggio realtime microfono attore
@@ -242,7 +248,27 @@ const App = () => {
     analysisStatus, 
     analyzeAudio, 
     resetAnalysis 
-  } = useAudioAnalysis();
+  } = useAudioAnalysis({
+    onMarkersCreated: (markers) => {
+      // Salva i marker in attesa di trascrizione
+      setPendingMarkersForTranscription(markers);
+      // Mostra il modal per confermare la trascrizione
+      setShowTranscriptionModal(true);
+    }
+  });
+
+  // Speech Recognition Hook
+  const {
+    isTranscribing,
+    transcriptionProgress,
+    transcriptionStatus,
+    detectedLanguage,
+    supportedLanguages,
+    isSupported: isSpeechSupported,
+    transcribeMarkers,
+    cancelTranscription,
+    resetTranscription
+  } = useSpeechRecognition();
 
   // Check if we can analyze audio (video with audio must be loaded)
   const canAnalyzeAudio = videoURL && videoRef.current && !isAnalyzing;
@@ -259,38 +285,88 @@ const App = () => {
         return;
       }
 
-      // Chiedi conferma prima di aggiungere i cue
-      const confirmed = confirm(`Rilevate ${phraseStarts.length} frasi. Vuoi aggiungerle come cue ADR?`);
-      
-      if (confirmed) {
-        // Crea nuovi cue per ogni frase rilevata
-        const newCues = phraseStarts.map((time, index) => ({
-          id: Date.now() + index,
-          timeIn: time,
-          timeOut: null,
-          character: '',
-          text: `Frase ${index + 1}`,
-          status: 'todo'
-        }));
-
-        // Unisci con cue esistenti e ordina per tempo
-        const mergedCues = [...cues, ...newCues].sort((a, b) => a.timeIn - b.timeIn);
-        setCues(mergedCues);
-        
-        // Sincronizza con gli altri peer
-        if (sendCommandRef.current) {
-          sendCommandRef.current({ type: 'CUE_SYNC', cues: mergedCues });
-        }
-
-        alert(`Aggiunti ${newCues.length} cue automaticamente!`);
-      }
+      // I marker sono ora gestiti dal callback onMarkersCreated
+      // che mostra il modal di trascrizione
     } catch (error) {
       if (error.message !== 'Analisi annullata') {
         console.error('Errore analisi:', error);
         alert('Errore durante l\'analisi: ' + error.message);
       }
     }
-  }, [canAnalyzeAudio, analyzeAudio, cues]);
+  }, [canAnalyzeAudio, analyzeAudio]);
+
+  // Handle transcription confirmation
+  const handleConfirmTranscription = useCallback(async () => {
+    if (!pendingMarkersForTranscription || !videoRef.current) return;
+
+    setShowTranscriptionModal(false);
+
+    // Verifica supporto Speech API
+    if (!isSpeechSupported()) {
+      // Aggiungi i marker senza trascrizione
+      const mergedCues = [...cues, ...pendingMarkersForTranscription].sort((a, b) => a.timeIn - b.timeIn);
+      setCues(mergedCues);
+      if (sendCommandRef.current) {
+        sendCommandRef.current({ type: 'CUE_SYNC', cues: mergedCues });
+      }
+      alert(`Aggiunti ${pendingMarkersForTranscription.length} cue senza trascrizione (Web Speech API non supportata)`);
+      setPendingMarkersForTranscription(null);
+      return;
+    }
+
+    try {
+      // Trascrizione automatica dei marker
+      const transcribedMarkers = await transcribeMarkers(
+        videoRef.current,
+        pendingMarkersForTranscription,
+        selectedTranscriptionLanguage,
+        (current, total, marker) => {
+          console.log(`Trascrizione ${current}/${total}:`, marker.text);
+        }
+      );
+
+      // Unisci con cue esistenti e ordina per tempo
+      const mergedCues = [...cues, ...transcribedMarkers].sort((a, b) => a.timeIn - b.timeIn);
+      setCues(mergedCues);
+      
+      // Sincronizza con gli altri peer
+      if (sendCommandRef.current) {
+        sendCommandRef.current({ type: 'CUE_SYNC', cues: mergedCues });
+      }
+
+      const transcribedCount = transcribedMarkers.filter(m => m.text && !m.text.startsWith('Frase ')).length;
+      alert(`Aggiunti ${transcribedMarkers.length} cue!\n${transcribedCount} trascritti automaticamente.`);
+    } catch (error) {
+      console.error('Errore trascrizione:', error);
+      // Aggiungi i marker anche se la trascrizione fallisce
+      const mergedCues = [...cues, ...pendingMarkersForTranscription].sort((a, b) => a.timeIn - b.timeIn);
+      setCues(mergedCues);
+      if (sendCommandRef.current) {
+        sendCommandRef.current({ type: 'CUE_SYNC', cues: mergedCues });
+      }
+      alert(`Aggiunti ${pendingMarkersForTranscription.length} cue (trascrizione fallita)`);
+    } finally {
+      setPendingMarkersForTranscription(null);
+    }
+  }, [pendingMarkersForTranscription, cues, selectedTranscriptionLanguage, isSpeechSupported, transcribeMarkers]);
+
+  // Handle skip transcription
+  const handleSkipTranscription = useCallback(() => {
+    if (!pendingMarkersForTranscription) return;
+
+    setShowTranscriptionModal(false);
+
+    // Aggiungi i marker senza trascrizione
+    const mergedCues = [...cues, ...pendingMarkersForTranscription].sort((a, b) => a.timeIn - b.timeIn);
+    setCues(mergedCues);
+    
+    if (sendCommandRef.current) {
+      sendCommandRef.current({ type: 'CUE_SYNC', cues: mergedCues });
+    }
+
+    alert(`Aggiunti ${pendingMarkersForTranscription.length} cue senza trascrizione.`);
+    setPendingMarkersForTranscription(null);
+  }, [pendingMarkersForTranscription, cues]);
 
   // Sync recording functions to refs for handleRemoteCommand
   useEffect(() => {
@@ -1500,6 +1576,127 @@ const App = () => {
 
               <div className="modal-actions">
                 <button className="btn-close btn-secondary" onClick={() => setShowUsersModal(false)}>CLOSE</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transcription Modal */}
+        {showTranscriptionModal && pendingMarkersForTranscription && (
+          <div className="modal-overlay" onClick={() => !isTranscribing && setShowTranscriptionModal(false)}>
+            <div className="settings-modal project-modal" onClick={e => e.stopPropagation()}>
+              <h2><Mic /> TRASCRIZIONE VOCALE</h2>
+              
+              <div className="project-form">
+                <p style={{ marginBottom: '1rem', color: '#ccc' }}>
+                  Rilevati <strong>{pendingMarkersForTranscription.length}</strong> marker ADR dall'analisi audio.
+                </p>
+                
+                <p style={{ marginBottom: '1rem', color: '#aaa', fontSize: '0.9rem' }}>
+                  Vuoi trascrivere automaticamente il testo di ogni marker usando il riconoscimento vocale?
+                </p>
+
+                <div className="project-form-field">
+                  <label>Lingua per la trascrizione</label>
+                  <select 
+                    value={selectedTranscriptionLanguage}
+                    onChange={(e) => setSelectedTranscriptionLanguage(e.target.value)}
+                    disabled={isTranscribing}
+                  >
+                    {supportedLanguages.map(lang => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="field-hint">
+                    {selectedTranscriptionLanguage === 'auto' 
+                      ? 'Rilevamento automatico della lingua (richiede piu tempo)'
+                      : detectedLanguage 
+                        ? `Lingua rilevata: ${supportedLanguages.find(l => l.code === detectedLanguage)?.name || detectedLanguage}`
+                        : 'Seleziona la lingua parlata nel video'
+                    }
+                  </span>
+                </div>
+
+                {!isSpeechSupported() && (
+                  <div style={{ 
+                    padding: '12px', 
+                    background: 'rgba(255, 100, 100, 0.2)', 
+                    borderRadius: '6px',
+                    marginTop: '1rem',
+                    color: '#ff8888',
+                    fontSize: '0.85rem'
+                  }}>
+                    <strong>Attenzione:</strong> Web Speech API non supportata in questo browser. 
+                    I marker verranno aggiunti senza trascrizione.
+                    <br />
+                    Usa Chrome, Edge o Safari per la trascrizione automatica.
+                  </div>
+                )}
+
+                {isTranscribing && (
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      marginBottom: '0.5rem',
+                      fontSize: '0.85rem',
+                      color: '#aaa'
+                    }}>
+                      <span>{transcriptionStatus}</span>
+                      <span>{Math.round(transcriptionProgress)}%</span>
+                    </div>
+                    <div style={{ 
+                      width: '100%', 
+                      height: '8px', 
+                      background: '#333', 
+                      borderRadius: '4px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{ 
+                        width: `${transcriptionProgress}%`, 
+                        height: '100%', 
+                        background: 'linear-gradient(90deg, #00d4ff, #00ff88)',
+                        transition: 'width 0.3s ease',
+                        borderRadius: '4px'
+                      }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-actions">
+                {!isTranscribing ? (
+                  <>
+                    <button 
+                      className="btn-close btn-secondary" 
+                      onClick={() => setShowTranscriptionModal(false)}
+                    >
+                      ANNULLA
+                    </button>
+                    <button 
+                      className="btn-close btn-secondary" 
+                      onClick={handleSkipTranscription}
+                    >
+                      SALTA TRASCRIZIONE
+                    </button>
+                    <button 
+                      className="btn-close"
+                      onClick={handleConfirmTranscription}
+                      disabled={!isSpeechSupported()}
+                    >
+                      TRASCRIVI ({pendingMarkersForTranscription.length})
+                    </button>
+                  </>
+                ) : (
+                  <button 
+                    className="btn-close btn-secondary"
+                    onClick={cancelTranscription}
+                  >
+                    INTERROMPI
+                  </button>
+                )}
               </div>
             </div>
           </div>

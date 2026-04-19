@@ -5,7 +5,8 @@ import { useState, useRef, useCallback } from 'react';
  * Utilizza Web Audio API per analizzare il volume e identificare i punti
  * dove iniziano le frasi (picchi di volume dopo silenzi).
  */
-export function useAudioAnalysis() {
+export function useAudioAnalysis(options = {}) {
+  const { onMarkersCreated } = options;
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisStatus, setAnalysisStatus] = useState('');
@@ -157,6 +158,19 @@ export function useAudioAnalysis() {
 
       setAnalysisProgress(100);
       setAnalysisStatus(`Analisi completata: ${phraseStarts.length} frasi rilevate`);
+
+      // Callback con i marker creati per la trascrizione
+      if (onMarkersCreated && phraseStarts.length > 0) {
+        const markers = phraseStarts.map((time, index) => ({
+          id: Date.now() + index,
+          timeIn: time,
+          timeOut: null,
+          character: '',
+          text: `Frase ${index + 1}`,
+          status: 'todo'
+        }));
+        onMarkersCreated(markers);
+      }
 
       return phraseStarts;
 
