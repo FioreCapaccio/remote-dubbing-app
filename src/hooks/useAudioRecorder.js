@@ -2,11 +2,10 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 
 /**
  * Hook per la registrazione audio:
- * - Solo il direttore (host) può registrare
- * - Il direttore registra dallo stream remoto (microfono del doppiatore)
- * - Il doppiatore (guest) NON registra nulla - è solo sorgente audio
+ * - Il direttore (host) può registrare dallo stream remoto (microfono del doppiatore)
+ * - Il doppiatore (guest) può registrare localmente e inviare il blob al direttore
  */
-export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected = false, remoteStream = null, role = 'host') => {
+export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected = false, remoteStream = null, role = 'host', onBlobReady = null) => {
   const [isRecording, setIsRecording] = useState(false);
   const [takes, setTakes] = useState([]);
   const [devices, setDevices] = useState([]);
@@ -14,7 +13,7 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
   const [selectedDevice, setSelectedDevice] = useState('');
   const [selectedOutput, setSelectedOutput] = useState('default');
   const [peakLevel, setPeakLevel] = useState(-60);
-  const [recordingSource, setRecordingSource] = useState('remote'); // always 'remote' for host
+  const [recordingSource, setRecordingSource] = useState(role === 'host' ? 'remote' : 'local');
   
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -23,6 +22,8 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
   const animationFrameRef = useRef(null);
   const micStreamRef = useRef(null);
   const peakMeterCallbackRef = useRef(null);
+  const currentTrackIdRef = useRef('track-1');
+  const mimeTypeRef = useRef('');
 
   // Enumerazione dispositivi audio
   useEffect(() => {
@@ -78,19 +79,22 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
   }, [updatePeakMeter]);
 
   // Inizializza analizzatore per remoteStream (solo per il direttore/host)
+  // o per micStream (per il guest che registra localmente)
   useEffect(() => {
-    // Il guest non ha bisogno di analizzatore per registrazione
-    if (role !== 'host') {
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch(() => {});
-        audioContextRef.current = null;
+    // Per il guest: usa il mic locale per il peak meter durante la registrazione
+    if (role === 'guest') {
+      if (!isRecording) {
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+          audioContextRef.current.close().catch(() => {});
+          audioContextRef.current = null;
+        }
+        analyserRef.current = null;
       }
-      analyserRef.current = null;
       return;
     }
 
+    // Per l'host: usa lo stream remoto
     if (!isConnected || !remoteStream) {
-      // Pulisci audio context se non connesso
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(() => {});
         audioContextRef.current = null;
@@ -127,16 +131,153 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         audioContextRef.current.close().catch(() => {});
       }
     };
-  }, [isConnected, remoteStream, settings.sampleRate, updatePeakMeter, role]);
+  }, [isConnected, remoteStream, settings.sampleRate, updatePeakMeter, role, isRecording]);
 
-  // Avvia registrazione - SOLO il direttore (host) registra dallo stream remoto
+  // Avvia registrazione locale per il guest (attore)
+  const startLocalRecording = useCallback(async (trackId = 'track-1') => {
+    currentTrackIdRef.current = trackId;
+    
+    try {
+      console.log('[AudioRecorder] Guest starting LOCAL recording');
+      setRecordingSource('local');
+      
+      // Ottieni il microfono locale con alta qualità
+      const audioConstraints = {
+        audio: {
+          channelCount: 1,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          sampleRate: settings.sampleRate || 48000,
+          sampleSize: 24
+        }
+      };
+      
+      if (selectedDevice) {
+        audioConstraints.audio.deviceId = { exact: selectedDevice };
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+      micStreamRef.current = stream;
+      
+      // Setup analizzatore per il peak meter
+      try {
+        const contextOptions = {};
+        if (settings && settings.sampleRate) {
+          contextOptions.sampleRate = settings.sampleRate;
+        }
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+        const source = audioContextRef.current.createMediaStreamSource(stream);
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 1024;
+        source.connect(analyserRef.current);
+        updatePeakMeter();
+      } catch (err) {
+        console.error('[AudioRecorder] Error setting up local analyzer:', err);
+      }
+      
+      // Rileva il codec supportato
+      const supportedMimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+        'audio/wav'
+      ];
+      
+      let mimeType = '';
+      for (const type of supportedMimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type;
+          console.log('[AudioRecorder] Guest using mimeType:', type);
+          break;
+        }
+      }
+      
+      if (!mimeType) {
+        console.error('[AudioRecorder] No supported mimeType found');
+        alert('Errore: Il tuo browser non supporta la registrazione audio.');
+        return;
+      }
+      
+      mimeTypeRef.current = mimeType;
+
+      const recorderOptions = {
+        mimeType,
+        audioBitsPerSecond: 128000
+      };
+
+      const mediaRecorder = new MediaRecorder(stream, recorderOptions);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        
+        // Per il guest: invia il blob tramite callback invece di salvarlo localmente
+        if (role === 'guest' && onBlobReady) {
+          console.log('[AudioRecorder] Guest sending blob to host via callback');
+          onBlobReady(audioBlob, {
+            trackId: currentTrackIdRef.current,
+            timestamp: new Date().toLocaleTimeString(),
+            sourceType: 'local'
+          });
+        } else {
+          // Per l'host: salva normalmente
+          const url = URL.createObjectURL(audioBlob);
+          const newTake = {
+            id: Date.now(),
+            trackId: currentTrackIdRef.current,
+            url,
+            blob: audioBlob,
+            timestamp: new Date().toLocaleTimeString(),
+            sourceType: 'local'
+          };
+          setTakes((prev) => [newTake, ...prev]);
+        }
+        
+        // Ferma il mic stream
+        if (micStreamRef.current) {
+          micStreamRef.current.getTracks().forEach(t => t.stop());
+          micStreamRef.current = null;
+        }
+        
+        // Ferma l'analizzatore
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error('[AudioRecorder] MediaRecorder error:', event);
+        alert('Errore durante la registrazione: ' + (event.message || 'Errore sconosciuto'));
+        setIsRecording(false);
+      };
+
+      mediaRecorder.start(100);
+      setIsRecording(true);
+      console.log('[AudioRecorder] Guest local recording started successfully');
+    } catch (err) {
+      console.error('[AudioRecorder] Error starting local recording:', err);
+      alert('Errore durante l\'avvio della registrazione: ' + err.message);
+    }
+  }, [role, settings.sampleRate, selectedDevice, onBlobReady]);
+
+  // Avvia registrazione - host registra da stream remoto, guest registra localmente
   const startRecording = useCallback((trackId = 'track-1') => {
-    // Il guest NON registra mai
-    if (role !== 'host') {
-      console.log('[AudioRecorder] Guest cannot record - only the director (host) records');
+    if (role === 'guest') {
+      // Il guest registra localmente
+      startLocalRecording(trackId);
       return;
     }
 
+    // Host: registra dallo stream remoto (codice esistente)
     try {
       if (!remoteStream) {
         alert("Remote stream not available. Make sure the dubber is connected.");
@@ -145,9 +286,8 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       
       console.log('[AudioRecorder] Starting recording from REMOTE stream (dubber mic)');
       setRecordingSource('remote');
+      currentTrackIdRef.current = trackId;
       
-      // Rileva il codec supportato per la registrazione
-      // Nota: alcuni browser non supportano la registrazione di stream remoti con certi codec
       const supportedMimeTypes = [
         'audio/webm;codecs=opus',
         'audio/webm',
@@ -161,7 +301,6 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       let mimeType = '';
       for (const type of supportedMimeTypes) {
         if (MediaRecorder.isTypeSupported(type)) {
-          // Verifica anche che il browser possa registrare questo stream con questo codec
           try {
             const testRecorder = new MediaRecorder(remoteStream, { mimeType: type });
             testRecorder.ondataavailable = () => {};
@@ -180,12 +319,12 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         return;
       }
 
+      mimeTypeRef.current = mimeType;
+
       const recorderOptions = {
         mimeType,
         audioBitsPerSecond: 128000
       };
-
-      console.log('[AudioRecorder] Using mimeType:', mimeType, 'bitrate: 128kbps');
 
       const mediaRecorder = new MediaRecorder(remoteStream, recorderOptions);
       mediaRecorderRef.current = mediaRecorder;
@@ -201,7 +340,7 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         
         const newTake = {
           id: Date.now(),
-          trackId: trackId,
+          trackId: currentTrackIdRef.current,
           url,
           blob: audioBlob,
           timestamp: new Date().toLocaleTimeString(),
@@ -216,7 +355,7 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         setIsRecording(false);
       };
 
-      mediaRecorder.start(100); // timeslice di 100ms per cattura più granulare
+      mediaRecorder.start(100);
       setIsRecording(true);
       console.log('[AudioRecorder] Recording started successfully from remote stream');
     } catch (err) {
@@ -227,7 +366,7 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         alert('Errore durante l\'avvio della registrazione: ' + err.message);
       }
     }
-  }, [remoteStream, role]);
+  }, [remoteStream, role, startLocalRecording]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {

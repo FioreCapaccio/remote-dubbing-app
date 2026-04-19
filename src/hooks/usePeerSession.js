@@ -361,6 +361,44 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     }
   }, [connection, isConnected]);
 
+  // Invia blob audio dal guest al host
+  const sendAudioBlob = useCallback((blob, metadata = {}) => {
+    if (!connection || !isConnected) {
+      console.warn('[PeerSession] Cannot send audio blob - not connected');
+      return false;
+    }
+    
+    // Il guest invia il blob audio al host
+    if (role !== 'guest') {
+      console.warn('[PeerSession] Only guest can send audio blob');
+      return false;
+    }
+
+    console.log('[PeerSession] Sending audio blob:', blob.size, 'bytes');
+    
+    // Invia prima i metadati
+    connection.send({
+      type: 'AUDIO_BLOB_START',
+      size: blob.size,
+      mimeType: blob.type,
+      ...metadata
+    });
+    
+    // Invia il blob come ArrayBuffer
+    blob.arrayBuffer().then(buffer => {
+      connection.send({
+        type: 'AUDIO_BLOB_DATA',
+        buffer: buffer,
+        mimeType: blob.type
+      });
+      console.log('[PeerSession] Audio blob sent successfully');
+    }).catch(err => {
+      console.error('[PeerSession] Error sending audio blob:', err);
+    });
+    
+    return true;
+  }, [connection, isConnected, role]);
+
   const disconnectUser = useCallback((conn) => {
     if (conn) {
       console.log('[PeerSession] Disconnecting user:', conn.peer);
@@ -387,5 +425,5 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     }
   }, []);
 
-  return { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback, connections, disconnectUser };
+  return { peerId, isConnected, connectionStatus, connectionError, sendCommand, sendAudioBlob, remoteStream, startTalkback, stopTalkback, connections, disconnectUser };
 };

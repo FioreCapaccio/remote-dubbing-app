@@ -151,14 +151,62 @@ const App = () => {
     }
   }, []);
 
-  const { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback, connections, disconnectUser } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
+  const handleAudioBlobFromGuest = useCallback((blob, metadata) => {
+    console.log('[App] Received audio blob from guest:', blob.size, 'bytes');
+    
+    // Crea URL per il blob
+    const url = URL.createObjectURL(blob);
+    
+    // Calcola la durata (usa il tempo corrente come fine registrazione)
+    const tDuration = internalTimeRef.current - recordStartTime.current;
+    
+    // Aggiungi il clip alla timeline
+    const targetTrackId = metadata.trackId || selectedTrackId;
+    
+    setTracks(prev => prev.map(t => t.id === targetTrackId ? {
+      ...t, clips: [...t.clips, {
+        id: `clip-${Date.now()}`,
+        url: url,
+        startTime: recordStartTime.current,
+        duration: tDuration > 0 ? tDuration : 2,
+        gain: 1,
+        sourceType: metadata.sourceType || 'remote'
+      }]
+    } : t));
+    
+    // Aggiungi anche ai takes per coerenza
+    const newTake = {
+      id: Date.now(),
+      trackId: targetTrackId,
+      url,
+      blob,
+      timestamp: metadata.timestamp || new Date().toLocaleTimeString(),
+      sourceType: metadata.sourceType || 'remote'
+    };
+    
+    console.log('[App] Audio clip added to track:', targetTrackId);
+  }, [selectedTrackId]);
 
-  // Hook per la registrazione audio - SOLO il direttore (host) registra dallo stream remoto
-  // Il doppiatore (guest) NON registra - è solo sorgente audio
+  const { peerId, isConnected, connectionStatus, connectionError, sendCommand, sendAudioBlob, remoteStream, startTalkback, stopTalkback, connections, disconnectUser } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
+
+  // Hook per la registrazione audio
+  // - Host (direttore): riceve blob dal guest e li aggiunge alla timeline
+  // - Guest (attore): registra localmente e invia il blob al host
+  const handleRecordingBlob = useCallback((blob, metadata) => {
+    // Questo callback viene chiamato solo dal guest quando finisce la registrazione
+    if (sessionRole === 'guest' && sendAudioBlob) {
+      console.log('[App] Guest sending recorded blob to host');
+      sendAudioBlob(blob, {
+        ...metadata,
+        recordStartTime: recordStartTime.current
+      });
+    }
+  }, [sessionRole, sendAudioBlob]);
+
   const { 
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
     selectedOutput, setOutputDevice, peakLevel, startRecording, stopRecording, recordingSource
-  } = useAudioRecorder(audioSettings, isConnected, remoteStream, sessionRole);
+  } = useAudioRecorder(audioSettings, isConnected, remoteStream, sessionRole, handleRecordingBlob);
 
   // Sync recording functions to refs for handleRemoteCommand
   useEffect(() => {
@@ -372,6 +420,13 @@ const App = () => {
     
     if (isRecording) {
       console.log('[App] Stopping recording...');
+      
+      // Se siamo il direttore, invia comando STOP_RECORDING al guest
+      if (sessionRole === 'host' && sendCommandRef.current) {
+        console.log('[App] Host sending STOP_RECORDING to guest');
+        sendCommandRef.current({ type: 'STOP_RECORDING' });
+      }
+      
       stopRecording();
       if (videoRef.current) videoRef.current.pause();
       else stopInternalPlayhead();
@@ -393,7 +448,17 @@ const App = () => {
       recordStartTime.current = startTime;
       console.log('[App] Countdown complete, recording on track:', selectedTrackId);
       
-      // Avvia registrazione semplice sul mic locale
+      // Se siamo il direttore, invia comando START_RECORDING al guest
+      if (sessionRole === 'host' && sendCommandRef.current) {
+        console.log('[App] Host sending START_RECORDING to guest');
+        sendCommandRef.current({ 
+          type: 'START_RECORDING', 
+          trackId: selectedTrackId,
+          recordStartTime: startTime
+        });
+      }
+      
+      // Avvia registrazione locale (host registra da stream remoto, guest registra localmente)
       startRecording(selectedTrackId);
       
       if (videoRef.current) {
@@ -408,7 +473,7 @@ const App = () => {
         if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
       }
     });
-  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead, selectedTrackId]);
+  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead, selectedTrackId, sessionRole]);
 
   // Define handleRemoteCommand and sync to ref
   const handleRemoteCommand = useCallback((cmd) => {
@@ -437,6 +502,39 @@ const App = () => {
           setIsPlaying(true);
         }
         break;
+      case 'START_RECORDING':
+        // Comando dal direttore per far iniziare la registrazione al guest
+        if (sessionRole === 'guest') {
+          console.log('[App] Guest received START_RECORDING command');
+          recordStartTime.current = cmd.recordStartTime || internalTimeRef.current;
+          startRecording(cmd.trackId || 'track-1');
+        }
+        break;
+      case 'STOP_RECORDING':
+        // Comando dal direttore per far fermare la registrazione al guest
+        if (sessionRole === 'guest') {
+          console.log('[App] Guest received STOP_RECORDING command');
+          stopRecording();
+        }
+        break;
+      case 'AUDIO_BLOB_START':
+        // Host riceve notifica che il guest sta per inviare un blob audio
+        if (sessionRole === 'host') {
+          console.log('[App] Host received AUDIO_BLOB_START, size:', cmd.size);
+        }
+        break;
+      case 'AUDIO_BLOB_DATA':
+        // Host riceve il blob audio dal guest
+        if (sessionRole === 'host' && cmd.buffer) {
+          console.log('[App] Host received AUDIO_BLOB_DATA');
+          const blob = new Blob([cmd.buffer], { type: cmd.mimeType || 'audio/webm' });
+          handleAudioBlobFromGuest(blob, {
+            trackId: cmd.trackId,
+            timestamp: cmd.timestamp,
+            sourceType: 'remote'
+          });
+        }
+        break;
       case 'COUNTDOWN_START':
         startCountdownDisplay(null);
         break;
@@ -457,7 +555,7 @@ const App = () => {
         break;
       default: break;
     }
-  }, [startCountdownDisplay, cancelCountdown, startInternalPlayhead, stopInternalPlayhead, selectedTrackId]);
+  }, [startCountdownDisplay, cancelCountdown, startInternalPlayhead, stopInternalPlayhead, selectedTrackId, sessionRole, startRecording, stopRecording, handleAudioBlobFromGuest]);
 
   // Sync handleRemoteCommand to ref so usePeerSession can use it
   useEffect(() => {
