@@ -1,12 +1,30 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 /**
  * Componente TrackVolumeMeter - mostra una barra meter per il livello audio
  * Riceve il livello in dB già calcolato
  */
 const TrackVolumeMeter = ({ dbLevel = -60 }) => {
+  const renderCount = useRef(0);
+  renderCount.current++;
+  
+  // Log ogni 30 render (~1 secondo a 30fps)
+  useEffect(() => {
+    if (renderCount.current % 30 === 1) {
+      console.log('[TrackVolumeMeter] Props ricevute:', {
+        dbLevel,
+        renderCount: renderCount.current
+      });
+    }
+  });
+
   // Normalizza da -60dB...0dB a 0...100%
   const percentage = Math.max(0, Math.min(100, ((dbLevel + 60) / 60) * 100));
+  
+  // Log se percentage è 0 ma dbLevel non è -60
+  if (percentage === 0 && dbLevel > -59) {
+    console.warn('[TrackVolumeMeter] ATTENZIONE: percentage è 0 ma dbLevel è:', dbLevel);
+  }
   
   // Determina colore in base al livello
   let color;
@@ -16,6 +34,16 @@ const TrackVolumeMeter = ({ dbLevel = -60 }) => {
     color = '#ffcc00'; // Giallo - alto
   } else {
     color = '#00ff88'; // Verde - buono
+  }
+
+  // Log ogni 60 render per debug
+  if (renderCount.current % 60 === 1) {
+    console.log('[TrackVolumeMeter] Render state:', {
+      dbLevel,
+      percentage: percentage.toFixed(1),
+      color,
+      renderCount: renderCount.current
+    });
   }
 
   return (
