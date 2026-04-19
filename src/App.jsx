@@ -23,6 +23,7 @@ import './index.css';
 const App = () => {
   // Routing State
   const [view, setView] = useState('landing'); // 'landing' or 'app'
+  const [initialRole, setInitialRole] = useState('host'); // 'host' or 'guest' from landing page
 
   // Mobile sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -45,7 +46,12 @@ const App = () => {
 
   // DAW State
   const [roomName, setRoomName] = useState('');
-  const [sessionRole, setSessionRole] = useState('host');
+  const [sessionRole, setSessionRole] = useState(initialRole);
+  
+  // Update sessionRole when initialRole changes (from landing page)
+  useEffect(() => {
+    setSessionRole(initialRole);
+  }, [initialRole]);
   const [tracks, setTracks] = useState([
     { id: 'video', name: 'ORIGINAL FILMAUDIO', volume: 1, muted: false, solo: false, type: 'video', clips: [] },
     { id: 'track-1', name: 'LEAD VOCAL', volume: 1, muted: false, solo: false, type: 'audio', clips: [], recEnabled: true }
@@ -874,7 +880,7 @@ const App = () => {
     }
   }, [remoteStream, selectedOutput]);
 
-  if (view === 'landing') return <LandingPage onLaunch={() => setView('app')} />;
+  if (view === 'landing') return <LandingPage onLaunch={(role) => { setInitialRole(role); setView('app'); }} />;
 
   return (
     <ErrorBoundary>

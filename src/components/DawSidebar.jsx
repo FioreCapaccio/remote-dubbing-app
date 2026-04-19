@@ -137,6 +137,7 @@ const DawSidebar = ({
   className,
 }) => {
   const isDirector = sessionRole === 'host';
+  const isActor = sessionRole === 'guest';
 
   // Chat panel state
   const [chatOpen, setChatOpen] = useState(true);
@@ -149,6 +150,70 @@ const DawSidebar = ({
   // Cue editing state: { cueId: { field: value } }
   const [editingCue, setEditingCue] = useState(null);
   const [editValues, setEditValues] = useState({});
+
+  // Microphone gain state for LEAD VOCAL track (actor only)
+  const [micGain, setMicGain] = useState(1);
+  const [micPeakLevel, setMicPeakLevel] = useState(-60);
+  const micAnalyserRef = useRef(null);
+  const micAudioContextRef = useRef(null);
+  const micAnimationFrameRef = useRef(null);
+
+  // Initialize microphone level meter for actor
+  useEffect(() => {
+    if (!isActor) {
+      // Cleanup if switching from actor to director
+      if (micAnimationFrameRef.current) {
+        cancelAnimationFrame(micAnimationFrameRef.current);
+      }
+      if (micAudioContextRef.current) {
+        micAudioContextRef.current.close().catch(() => {});
+      }
+      return;
+    }
+
+    const initMicMeter = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: { 
+            channelCount: 1, // Force mono
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          } 
+        });
+        
+        micAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        const source = micAudioContextRef.current.createMediaStreamSource(stream);
+        micAnalyserRef.current = micAudioContextRef.current.createAnalyser();
+        micAnalyserRef.current.fftSize = 256;
+        source.connect(micAnalyserRef.current);
+
+        const updateMicLevel = () => {
+          if (!micAnalyserRef.current) return;
+          const dataArray = new Uint8Array(micAnalyserRef.current.frequencyBinCount);
+          micAnalyserRef.current.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+          const db = average === 0 ? -60 : 20 * Math.log10(average / 255);
+          setMicPeakLevel(Math.max(-60, db));
+          micAnimationFrameRef.current = requestAnimationFrame(updateMicLevel);
+        };
+        updateMicLevel();
+      } catch (err) {
+        console.error('Mic meter init error:', err);
+      }
+    };
+
+    initMicMeter();
+
+    return () => {
+      if (micAnimationFrameRef.current) {
+        cancelAnimationFrame(micAnimationFrameRef.current);
+      }
+      if (micAudioContextRef.current) {
+        micAudioContextRef.current.close().catch(() => {});
+      }
+    };
+  }, [isActor]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -212,21 +277,13 @@ const DawSidebar = ({
           <button className="settings-trigger" onClick={() => setShowSettings(true)}><Settings2 size={16} /></button>
         </div>
 
-        <div className="role-selector-wrap">
+        {/* Role indicator - read only for both roles */}
+        <div className="role-indicator-wrap">
           <label className="role-selector-label">SESSION ROLE</label>
-          <div className="role-toggle">
-            <button
-              className={`role-btn${sessionRole === 'host' ? ' role-btn--active' : ''}`}
-              onClick={() => setSessionRole('host')}
-            >
-              DIRECTOR
-            </button>
-            <button
-              className={`role-btn${sessionRole === 'guest' ? ' role-btn--active' : ''}`}
-              onClick={() => setSessionRole('guest')}
-            >
-              ACTOR
-            </button>
+          <div className="role-display">
+            <span className={`role-badge ${sessionRole === 'host' ? 'role-badge--director' : 'role-badge--actor'}`}>
+              {sessionRole === 'host' ? 'DIRECTOR' : 'ATTORE / DOPPIATORE'}
+            </span>
           </div>
         </div>
 
@@ -252,7 +309,42 @@ const DawSidebar = ({
         </div>
       )}
 
-      {/* Cue List Section */}
+      {/* Microphone Level Meter for Actor */}
+      {isActor && (
+        <div className="sidebar-group mic-level-section">
+          <label className="role-selector-label">LEAD VOCAL INPUT</label>
+          <div className="mic-meter-wrapper">
+            <div className="mic-meter-bar">
+              <div 
+                className="mic-meter-fill"
+                style={{ 
+                  height: `${Math.max(0, Math.min(100, (micPeakLevel + 60) / 60 * 100))}%`,
+                  background: micPeakLevel > -6 ? '#ff4444' : micPeakLevel > -18 ? '#ffaa00' : '#00ff88'
+                }}
+              />
+            </div>
+            <div className="mic-meter-scale">
+              <span>0</span>
+              <span>-30</span>
+              <span>-60</span>
+            </div>
+          </div>
+          <div className="mic-gain-control">
+            <label>GAIN: {micGain.toFixed(1)}x</label>
+            <input
+              type="range"
+              min="0.5"
+              max="3"
+              step="0.1"
+              value={micGain}
+              onChange={(e) => setMicGain(parseFloat(e.target.value))}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Cue List Section - Hidden for Actor */}
+      {isDirector && (
       <div className="sidebar-group cue-list-section">
         <div className="cue-list-header">
           <label style={{ margin: 0 }}><Film size={12} /> CUE LIST</label>
@@ -448,6 +540,7 @@ const DawSidebar = ({
           })}
         </div>
       </div>
+      )}
 
       {/* Chat Section */}
       <div className="sidebar-group chat-section">
@@ -504,18 +597,30 @@ const DawSidebar = ({
       </div>
 
       <div className="master-section">
-        <div className="meter-wrapper">
-          <div className="meter-label">MASTER PEAK</div>
-          <VolumeMeter level={peakLevel} />
-        </div>
-        <button 
-          className={`export-btn ${isExporting ? 'loading' : ''}`} 
-          onClick={handleExportMixdown}
-          disabled={isExporting}
-        >
-          {isExporting ? <Activity className="spin" size={14} /> : <Download size={14} />} 
-          {isExporting ? 'RENDERING...' : 'EXPORT MIXDOWN'}
-        </button>
+        {isDirector && (
+          <>
+            <div className="meter-wrapper">
+              <div className="meter-label">MASTER PEAK</div>
+              <VolumeMeter level={peakLevel} />
+            </div>
+            <button 
+              className={`export-btn ${isExporting ? 'loading' : ''}`} 
+              onClick={handleExportMixdown}
+              disabled={isExporting}
+            >
+              {isExporting ? <Activity className="spin" size={14} /> : <Download size={14} />} 
+              {isExporting ? 'RENDERING...' : 'EXPORT MIXDOWN'}
+            </button>
+          </>
+        )}
+        {isActor && (
+          <div className="actor-status">
+            <div className="actor-status-indicator">
+              <span className={`status-dot ${isConnected ? 'status-dot--connected' : 'status-dot--disconnected'}`} />
+              <span>{isConnected ? 'CONNECTED TO DIRECTOR' : 'WAITING FOR CONNECTION'}</span>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

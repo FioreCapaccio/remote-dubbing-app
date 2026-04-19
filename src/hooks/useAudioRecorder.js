@@ -28,7 +28,14 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
   useEffect(() => {
     const getDevices = async () => {
       try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          channelCount: 1, // Force mono
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        } 
+      });
         const allDevices = await navigator.mediaDevices.enumerateDevices();
         setDevices(allDevices.filter(d => d.kind === 'audioinput'));
         setOutputDevices(allDevices.filter(d => d.kind === 'audiooutput'));

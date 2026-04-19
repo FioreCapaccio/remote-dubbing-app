@@ -1,7 +1,15 @@
-import React from 'react';
-import { Play, Mic, Zap, Headphones, Film, BookOpen } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Mic, Zap, Headphones, Film, BookOpen, User, Users } from 'lucide-react';
 
 const LandingPage = ({ onLaunch }) => {
+  const [selectedRole, setSelectedRole] = useState(null);
+
+  const handleEnter = () => {
+    if (selectedRole) {
+      onLaunch(selectedRole);
+    }
+  };
+
   return (
     <div className="landing-container">
       {/* Hero Section */}
@@ -16,8 +24,36 @@ const LandingPage = ({ onLaunch }) => {
             Connect your dubbing director directly to the recording booth — anywhere in the world.
             Real-time talkback, high-fidelity capture, and frame-perfect ADR synchronization.
           </p>
+          
+          {/* Role Selection */}
+          <div className="role-selection">
+            <p className="role-selection-title">SELECT YOUR ROLE TO ENTER</p>
+            <div className="role-cards">
+              <button 
+                className={`role-card ${selectedRole === 'host' ? 'role-card--selected' : ''}`}
+                onClick={() => setSelectedRole('host')}
+              >
+                <Users size={32} />
+                <span className="role-card-title">DIRETTORE</span>
+                <span className="role-card-desc">Control room & recording</span>
+              </button>
+              <button 
+                className={`role-card ${selectedRole === 'guest' ? 'role-card--selected' : ''}`}
+                onClick={() => setSelectedRole('guest')}
+              >
+                <User size={32} />
+                <span className="role-card-title">ATTORE / DOPPIATORE</span>
+                <span className="role-card-desc">Remote dubbing booth</span>
+              </button>
+            </div>
+          </div>
+
           <div className="hero-actions">
-            <button className="btn-primary" onClick={onLaunch}>
+            <button 
+              className="btn-primary" 
+              onClick={handleEnter}
+              disabled={!selectedRole}
+            >
               <Play size={20} fill="currentColor" /> ENTER ADR STATION
             </button>
             <button className="btn-secondary">

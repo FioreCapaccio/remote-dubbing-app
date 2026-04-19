@@ -1700,6 +1700,220 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
   background: var(--accent-hover);
 }
 
+/* Role Selection Cards on Landing Page */
+.role-selection {
+  margin: 2rem 0;
+}
+
+.role-selection-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.15em;
+  margin-bottom: 1rem;
+}
+
+.role-cards {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.role-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 2rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 160px;
+}
+
+.role-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.role-card--selected {
+  background: var(--bg-accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 20px rgba(0, 251, 130, 0.2);
+}
+
+.role-card--selected:hover {
+  border-color: var(--accent);
+}
+
+.role-card-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: 0.05em;
+}
+
+.role-card-desc {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.role-card svg {
+  color: var(--accent);
+}
+
+/* Role Display in Sidebar */
+.role-indicator-wrap {
+  margin: 0.75rem 0 0.25rem;
+}
+
+.role-display {
+  display: flex;
+  justify-content: center;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  border-radius: 6px;
+  border: 1px solid;
+}
+
+.role-badge--director {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: #2563eb;
+  color: #60a5fa;
+}
+
+.role-badge--actor {
+  background: rgba(0, 251, 130, 0.1);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Microphone Level Section for Actor */
+.mic-level-section {
+  padding: 1rem;
+  background: rgba(0, 251, 130, 0.03);
+  border: 1px solid rgba(0, 251, 130, 0.2);
+  border-radius: 8px;
+}
+
+.mic-meter-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  height: 120px;
+  margin-bottom: 0.75rem;
+}
+
+.mic-meter-bar {
+  flex: 1;
+  background: var(--bg-main);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.mic-meter-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  transition: height 0.05s ease, background 0.1s ease;
+  border-radius: 0 0 4px 4px;
+}
+
+.mic-meter-scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  padding: 0.25rem 0;
+}
+
+.mic-gain-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mic-gain-control label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0;
+}
+
+.mic-gain-control input[type="range"] {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-main);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.mic-gain-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.mic-gain-control input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+/* Actor Status in Master Section */
+.actor-status {
+  padding: 1rem;
+  text-align: center;
+}
+
+.actor-status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot--connected {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.status-dot--disconnected {
+  background: #ff4444;
+  box-shadow: 0 0 8px #ff4444;
+}
+
 .btn-secondary {
   background: rgba(255,255,255,0.08);
   color: #fff;
