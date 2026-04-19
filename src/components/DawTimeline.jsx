@@ -26,6 +26,9 @@ const DawTimeline = ({
   const [draggingCue, setDraggingCue] = useState(null); // { cueId, startX, startTimeIn, previewTimeIn }
   const dragCueRef = useRef(null);
   const rulerRef = useRef(null);
+  const timelineRef = useRef(null);
+  const touchStartRef = useRef(null);
+  const lastTouchTimeRef = useRef(0);
 
   // Hook per monitorare i livelli audio delle tracce (semplificato, niente remoteStream)
   const trackLevels = useTrackMeters(tracks);
@@ -80,6 +83,90 @@ const DawTimeline = ({
     };
   }, [draggingCue, zoomLevel, duration, onUpdateCue]);
 
+  // Touch event handlers for mobile timeline scrubbing
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now()
+    };
+    
+    // Check if touching a button or input
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+    
+    // Handle timeline scrubbing on touch
+    const timeline = timelineRef.current;
+    if (!timeline) return;
+    
+    const rect = timeline.getBoundingClientRect();
+    const trackX = touch.clientX - rect.left + timeline.scrollLeft - sidebarWidth;
+    const maxTime = Math.max(duration > 0 ? duration : 0, 0);
+    const newTime = Math.max(0, trackX / zoomLevel);
+    const clampedTime = maxTime > 0 ? Math.min(newTime, maxTime) : newTime;
+    
+    if (videoRef.current) videoRef.current.currentTime = clampedTime;
+    if (internalTimeRef) internalTimeRef.current = clampedTime;
+    setCurrentTime(clampedTime);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStartRef.current) return;
+    
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    const deltaTime = Date.now() - touchStartRef.current.time;
+    
+    // If moving horizontally more than vertically and quickly, it's a scrub
+    if (Math.abs(deltaX) > Math.abs(deltaY) && deltaTime < 500) {
+      e.preventDefault(); // Prevent scrolling
+      
+      const timeline = timelineRef.current;
+      if (!timeline) return;
+      
+      const rect = timeline.getBoundingClientRect();
+      const trackX = touch.clientX - rect.left + timeline.scrollLeft - sidebarWidth;
+      const maxTime = Math.max(duration > 0 ? duration : 0, 0);
+      const newTime = Math.max(0, trackX / zoomLevel);
+      const clampedTime = maxTime > 0 ? Math.min(newTime, maxTime) : newTime;
+      
+      if (videoRef.current) videoRef.current.currentTime = clampedTime;
+      if (internalTimeRef) internalTimeRef.current = clampedTime;
+      setCurrentTime(clampedTime);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartRef.current = null;
+  };
+
+  // Double-tap detection for adding cues on mobile
+  const handleTimelineClick = (e) => {
+    const now = Date.now();
+    const timeDiff = now - lastTouchTimeRef.current;
+    
+    if (timeDiff < 300) {
+      // Double tap detected - add cue at position
+      const timeline = timelineRef.current;
+      if (!timeline) return;
+      
+      const rect = timeline.getBoundingClientRect();
+      const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      const trackX = clientX - rect.left + timeline.scrollLeft - sidebarWidth;
+      const newTime = Math.max(0, trackX / zoomLevel);
+      const clampedTime = duration > 0 ? Math.min(newTime, duration) : newTime;
+      const roundedTime = Math.round(clampedTime * 1000) / 1000;
+      
+      if (videoRef.current) videoRef.current.currentTime = roundedTime;
+      if (internalTimeRef) internalTimeRef.current = roundedTime;
+      setCurrentTime(roundedTime);
+      onAddCue(roundedTime);
+    }
+    
+    lastTouchTimeRef.current = now;
+  };
+
   const updateTrack = (id, field, value) => {
     console.log('[DawTimeline] updateTrack called:', { id, field, value });
     setTracks(prev => {
@@ -130,10 +217,15 @@ const DawTimeline = ({
 
   return (
     <section 
+      ref={timelineRef}
       className={`timeline-daw-integrated ${isDraggingOver ? 'drag-over' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onClick={handleTimelineClick}
       onMouseDown={(e) => {
         if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.button !== 0) return;
         e.preventDefault();

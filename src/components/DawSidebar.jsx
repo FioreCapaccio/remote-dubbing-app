@@ -133,6 +133,8 @@ const DawSidebar = ({
   tracks,
   audioSettings,
   videoFileName,
+  // Mobile sidebar class
+  className,
 }) => {
   const isDirector = sessionRole === 'host';
 
@@ -203,7 +205,7 @@ const DawSidebar = ({
   const myRole = sessionRole === 'host' ? 'director' : 'actor';
 
   return (
-    <aside className="sidebar session-sidebar" style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}>
+    <aside className={`sidebar session-sidebar ${className || ''}`} style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}>
       <div className="sidebar-group">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 className="app-logo"><Activity size={18} /> VOCALSYNC <span className="v-tag">5.0 PRO</span></h2>

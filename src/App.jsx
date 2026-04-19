@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Download, Upload, Tag, Folder } from 'lucide-react';
+import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Download, Upload, Tag, Folder, Menu, X } from 'lucide-react';
 
 // Hooks
 import { useAudioRecorder } from './hooks/useAudioRecorder';
@@ -23,6 +23,10 @@ import './index.css';
 const App = () => {
   // Routing State
   const [view, setView] = useState('landing'); // 'landing' or 'app'
+
+  // Mobile sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Application State
   const [videoURL, setVideoURL] = useState(null);
@@ -96,6 +100,19 @@ const App = () => {
   const startRecordingRef = useRef(null);
   const stopRecordingRef = useRef(null);
   const handleRemoteCommandRef = useRef(null);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+      if (window.innerWidth > 768) {
+        setSidebarOpen(false);
+      }
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Peer session hook
   const handleRemoteCommandWrapper = useCallback((cmd) => {
@@ -862,11 +879,37 @@ const App = () => {
   return (
     <ErrorBoundary>
       <div className="app-container" onMouseUp={() => setDraggingClip(null)}>
-        <DawSidebar 
-          sidebarWidth={sidebarWidth} roomName={roomName} setRoomName={setRoomName}
-          isConnected={isConnected} connectionStatus={connectionStatus} connectionError={connectionError} peerId={peerId}
-          sessionRole={sessionRole} setSessionRole={setSessionRole}
-          startTalkback={startTalkback} stopTalkback={stopTalkback}
+        {/* Mobile menu toggle */}
+        {isMobile && (
+          <button
+            className="mobile-menu-toggle"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+          >
+            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        )}
+
+        {/* Mobile overlay */}
+        {isMobile && (
+          <div
+            className={`mobile-menu-overlay ${!sidebarOpen ? 'hidden' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        <DawSidebar
+          sidebarWidth={sidebarWidth}
+          roomName={roomName}
+          setRoomName={setRoomName}
+          isConnected={isConnected}
+          connectionStatus={connectionStatus}
+          connectionError={connectionError}
+          peerId={peerId}
+          sessionRole={sessionRole}
+          setSessionRole={setSessionRole}
+          startTalkback={startTalkback}
+          stopTalkback={stopTalkback}
           cues={cues}
           onAddCue={handleAddCue}
           onUpdateCue={handleUpdateCue}
@@ -874,8 +917,12 @@ const App = () => {
           onPrevCue={handlePrevCue}
           onNextCue={handleNextCue}
           activeCue={activeCue}
-          peakLevel={peakLevel} isExporting={isExporting} handleExportMixdown={handleExportMixdown}
-          setShowSettings={setShowSettings} videoRef={videoRef} setCurrentTime={setCurrentTime}
+          peakLevel={peakLevel}
+          isExporting={isExporting}
+          handleExportMixdown={handleExportMixdown}
+          setShowSettings={setShowSettings}
+          videoRef={videoRef}
+          setCurrentTime={setCurrentTime}
           chatMessages={chatMessages}
           unreadChatCount={unreadChatCount}
           onSendChat={handleSendChat}
@@ -883,6 +930,7 @@ const App = () => {
           tracks={tracks}
           audioSettings={audioSettings}
           videoFileName={videoFileName}
+          className={sidebarOpen ? 'open' : ''}
         />
         <div className="layout-divider-v" onMouseDown={(e) => { e.preventDefault(); isResizingHorizontal.current = true; document.body.style.cursor = 'col-resize'; }} />
         <main className="main-content">

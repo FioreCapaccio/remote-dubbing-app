@@ -2521,3 +2521,708 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
   width: 100%;
   font-family: inherit;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE STYLES - Mobile & Tablet Support
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Mobile menu toggle button */
+.mobile-menu-toggle {
+  display: none;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1001;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--text-main);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.mobile-menu-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 998;
+  backdrop-filter: blur(2px);
+}
+
+/* Tablet breakpoint (768px) */
+@media (max-width: 768px) {
+  .mobile-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-menu-overlay {
+    display: block;
+  }
+
+  .mobile-menu-overlay.hidden {
+    display: none;
+  }
+
+  /* App container adjustments */
+  .app-container {
+    flex-direction: column;
+  }
+
+  /* Sidebar becomes slide-out drawer */
+  .session-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 300px !important;
+    min-width: 300px !important;
+    z-index: 999;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .session-sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Main content takes full width */
+  .main-content {
+    width: 100vw;
+  }
+
+  /* Hide vertical divider on mobile */
+  .layout-divider-v {
+    display: none;
+  }
+
+  /* Transport bar adjustments */
+  .pro-transport {
+    padding: 0 0.75rem;
+    height: auto;
+    min-height: 70px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 0.5rem;
+    padding-top: 50px;
+  }
+
+  .transport-left {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .transport-main-controls {
+    gap: 12px;
+  }
+
+  .transport-project-controls {
+    padding-left: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .transport-center {
+    order: -1;
+    padding: 0.25rem 0;
+  }
+
+  .transport-right {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Larger touch targets for transport buttons */
+  .btn-transport {
+    width: 52px;
+    height: 52px;
+  }
+
+  .btn-project {
+    height: 40px;
+    padding: 0 14px;
+  }
+
+  .btn-project .btn-label {
+    font-size: 0.6rem;
+  }
+
+  /* Timecode display */
+  .tc-display {
+    font-size: 1.4rem;
+  }
+
+  .tc-duration {
+    font-size: 0.6rem;
+  }
+
+  /* Video preview adjustments */
+  .video-master {
+    min-height: 200px;
+  }
+
+  .v-container {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16/9;
+  }
+
+  .tc-overlay {
+    font-size: 0.7rem;
+    padding: 4px 8px;
+    top: 0.5rem;
+    right: 0.5rem;
+  }
+
+  /* Timeline adjustments for touch */
+  .timeline-daw-integrated {
+    min-height: 300px;
+  }
+
+  .track-row {
+    height: 100px;
+  }
+
+  .track-header-cell {
+    padding: 0.75rem;
+    gap: 6px;
+  }
+
+  .track-header-cell .name {
+    font-size: 0.65rem;
+  }
+
+  .row-controls button {
+    width: 32px;
+    height: 32px;
+    font-size: 0.7rem;
+  }
+
+  /* Larger playhead handle for touch */
+  .playhead-handle {
+    width: 16px;
+    height: 16px;
+    left: -7px;
+  }
+
+  /* Clip items larger touch targets */
+  .clip-item {
+    min-height: 80px;
+  }
+
+  /* Cue pins larger for touch */
+  .timeline-cue-pin {
+    height: 40px;
+  }
+
+  .cue-pin-flag {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+  }
+
+  /* Modal adjustments */
+  .settings-modal {
+    width: 90vw !important;
+    max-width: 400px;
+    padding: 1.5rem;
+  }
+
+  .wizard-modal {
+    width: 95vw !important;
+    max-width: 600px;
+  }
+
+  /* Landing page adjustments */
+  .hero {
+    height: auto;
+    min-height: 70vh;
+    padding: 80px 5% 40px;
+  }
+
+  .hero-title {
+    font-size: clamp(1.8rem, 6vw, 3rem);
+  }
+
+  .hero-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    padding: 1rem 2rem;
+    width: 100%;
+    max-width: 280px;
+    justify-content: center;
+  }
+
+  .features {
+    padding: 3rem 5%;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .feature-card {
+    padding: 1.5rem;
+  }
+
+  .landing-footer {
+    padding: 2rem 5%;
+  }
+
+  .footer-links {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.5rem;
+  }
+
+  /* Chat section adjustments */
+  .chat-section {
+    max-height: 200px;
+  }
+
+  .chat-messages {
+    max-height: 120px;
+  }
+
+  /* Cue list adjustments */
+  .cue-list-section {
+    max-height: 250px;
+  }
+
+  .cue-list-scroll {
+    max-height: 180px;
+  }
+
+  .cue-item {
+    padding: 8px;
+  }
+
+  .cue-row-top {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .cue-character,
+  .cue-character-edit {
+    min-width: 80px;
+    flex: 1;
+  }
+
+  /* Horizontal divider */
+  .layout-divider-h {
+    height: 12px;
+  }
+
+  .layout-divider-h::after {
+    width: 40px;
+  }
+}
+
+/* Smartphone breakpoint (480px) */
+@media (max-width: 480px) {
+  /* Even smaller sidebar */
+  .session-sidebar {
+    width: 280px !important;
+    min-width: 280px !important;
+    padding: 0.75rem;
+  }
+
+  /* Transport bar stack everything */
+  .pro-transport {
+    padding: 50px 0.5rem 0.5rem;
+    min-height: auto;
+  }
+
+  .transport-left {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .transport-main-controls {
+    gap: 16px;
+  }
+
+  .transport-project-controls {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 10px;
+    width: 100%;
+  }
+
+  /* Even larger touch targets */
+  .btn-transport {
+    width: 56px;
+    height: 56px;
+  }
+
+  .btn-transport svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .btn-stop svg,
+  .btn-play svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .rec-dot {
+    width: 16px;
+    height: 16px;
+  }
+
+  .btn-project {
+    height: 44px;
+    padding: 0 12px;
+  }
+
+  .btn-project svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Timecode smaller but readable */
+  .tc-display {
+    font-size: 1.1rem;
+  }
+
+  .tc-smpte-label {
+    font-size: 0.4rem;
+  }
+
+  /* Video minimum height */
+  .video-master {
+    min-height: 160px;
+  }
+
+  /* Timeline even more compact */
+  .track-row {
+    height: 85px;
+  }
+
+  .track-header-cell {
+    width: 100px !important;
+    min-width: 100px !important;
+    padding: 0.5rem;
+  }
+
+  .track-header-cell .name {
+    font-size: 0.6rem;
+  }
+
+  .row-controls {
+    gap: 0.3rem;
+  }
+
+  .row-controls button {
+    width: 28px;
+    height: 28px;
+    font-size: 0.6rem;
+  }
+
+  .vol-pct {
+    font-size: 0.45rem;
+    min-width: 22px;
+  }
+
+  /* Timeline ruler */
+  .timeline-ruler {
+    height: 36px;
+  }
+
+  .ruler-mark {
+    font-size: 0.55rem;
+    padding: 2px 4px;
+  }
+
+  /* Cue pins even larger for touch */
+  .timeline-cue-pin {
+    height: 45px;
+  }
+
+  .cue-pin-flag {
+    font-size: 0.55rem;
+    max-width: 100px;
+  }
+
+  /* Playhead handle larger */
+  .playhead-handle {
+    width: 20px;
+    height: 20px;
+    left: -9px;
+  }
+
+  /* Clip minimum sizes */
+  .clip-item {
+    min-height: 70px;
+    min-width: 30px;
+  }
+
+  .clip-label {
+    font-size: 0.55rem;
+  }
+
+  /* Add track button */
+  .add-row-btn {
+    margin: 1rem;
+    padding: 0.6rem 1rem;
+    font-size: 0.65rem;
+  }
+
+  /* Subtitle overlay */
+  .adr-subtitle-overlay {
+    padding: 6px 12px 8px;
+    max-width: 95%;
+  }
+
+  .subtitle-character {
+    font-size: 0.55rem;
+  }
+
+  .subtitle-text {
+    font-size: 0.9rem;
+  }
+
+  /* Countdown overlay */
+  .countdown-number {
+    font-size: clamp(4rem, 15vw, 6rem);
+  }
+
+  .countdown-label {
+    font-size: 0.6rem;
+  }
+
+  /* Zoom controls */
+  .zoom-controls input[type="range"] {
+    width: 80px !important;
+  }
+
+  /* Filename display */
+  .filename {
+    font-size: 0.6rem;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Landing page */
+  .hero {
+    min-height: 60vh;
+    padding-top: 60px;
+  }
+
+  .hero-title {
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
+    margin-bottom: 1rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+
+  .brand-badge {
+    font-size: 0.6rem;
+    padding: 5px 12px;
+  }
+
+  .features {
+    padding: 2rem 4%;
+  }
+
+  .feature-card {
+    padding: 1.25rem;
+  }
+
+  .feature-card h3 {
+    font-size: 1rem;
+  }
+
+  .feature-card p {
+    font-size: 0.85rem;
+  }
+
+  /* Context menu */
+  .clip-context-menu {
+    min-width: 160px;
+    padding: 6px;
+  }
+
+  .context-menu-header {
+    font-size: 0.55rem;
+  }
+
+  .context-menu-btn {
+    font-size: 0.6rem;
+    padding: 6px;
+  }
+
+  /* Project modals */
+  .project-modal-enhanced {
+    width: 95vw !important;
+  }
+
+  .project-form {
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  .project-form-field input,
+  .project-form-field textarea {
+    padding: 0.6rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  /* Cue list on mobile */
+  .cue-list-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .cue-nav-controls {
+    gap: 6px;
+  }
+
+  .cue-nav-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .cue-add-btn {
+    padding: 4px 10px;
+    font-size: 0.6rem;
+  }
+
+  /* Chat input larger */
+  .chat-input-row {
+    padding: 0.75rem;
+  }
+
+  .chat-input {
+    padding: 8px 10px;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  .chat-send-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Talkback button larger */
+  .ptt-button {
+    padding: 1rem;
+  }
+
+  .ptt-button svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .ptt-label {
+    font-size: 0.9rem;
+  }
+
+  .ptt-hint {
+    font-size: 0.6rem;
+  }
+
+  /* Role selector */
+  .role-btn {
+    padding: 0.6rem 0;
+    font-size: 0.7rem;
+  }
+
+  /* Room input */
+  .room-box input {
+    padding: 0.75rem;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Master section */
+  .master-section {
+    padding-top: 0.75rem;
+  }
+
+  .export-btn {
+    padding: 0.9rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* Landscape mode on mobile */
+@media (max-height: 500px) and (max-width: 768px) {
+  .pro-transport {
+    padding-top: 45px;
+    min-height: 55px;
+  }
+
+  .video-master {
+    min-height: 120px;
+  }
+
+  .track-row {
+    height: 70px;
+  }
+
+  .session-sidebar {
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .cue-list-section,
+  .chat-section {
+    max-height: 120px;
+  }
+}
+
+/* Touch device optimizations */
+@media (pointer: coarse) {
+  /* Larger touch targets globally */
+  button,
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Remove hover effects on touch devices */
+  .btn-transport:hover,
+  .btn-project:hover,
+  .cue-nav-btn:hover,
+  .cue-add-btn:hover {
+    transform: none;
+  }
+
+  /* Add active states for touch feedback */
+  .btn-transport:active,
+  .btn-project:active,
+  .cue-nav-btn:active,
+  .cue-add-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* Larger scrollbar for touch */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+  }
+}
