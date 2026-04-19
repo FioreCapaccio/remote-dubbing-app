@@ -1088,10 +1088,36 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 /* Track volume range styling */
 .track-header-cell input[type=range] {
   width: 100%;
-  height: 4px;
+  height: 8px;
   accent-color: var(--accent);
   cursor: pointer;
-  margin-top: 0.3rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Track Volume Meter - Enhanced visibility */
+.track-volume-meter {
+  width: 100%;
+  height: 16px !important;
+  background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  margin-top: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.track-volume-meter > div:first-child {
+  height: 100% !important;
+  border-radius: 3px;
+  box-shadow: 0 0 4px rgba(0, 255, 136, 0.3);
+}
+
+.track-volume-meter span {
+  font-size: 10px !important;
+  font-weight: 700;
+  right: 6px !important;
 }
 
 /* Landing Page Styles */

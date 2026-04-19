@@ -2,7 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 
 /**
  * Hook per la registrazione audio:
- * - Il direttore (host) NON registra dallo stream remoto. Invia solo comandi all'attore e aspetta il blob.
+ * - Il direttore (host) registra dal microfono locale se non c'è connessione
+ * - Se c'è connessione, il direttore riceve l'audio dall'attore remoto
  * - Il doppiatore (guest) registra localmente e invia il blob al direttore
  */
 export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected = false, remoteStream = null, role = 'host', onBlobReady = null) => {
@@ -275,38 +276,59 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
     }
   }, [role, settings.sampleRate, settings.bitDepth, selectedDevice, onBlobReady]);
 
-  // Avvia registrazione - SOLO guest registra localmente. Host NON registra.
+  // Avvia registrazione - Guest registra sempre localmente.
+  // Host registra localmente SOLO se non c'è connessione, altrimenti aspetta blob dal guest.
   const startRecording = useCallback((trackId = 'track-1') => {
+    currentTrackIdRef.current = trackId;
+    
     if (role === 'guest') {
-      // Il guest registra localmente
+      // Il guest registra sempre localmente
       startLocalRecording(trackId);
       return;
     }
 
-    // Host: NON registra dallo stream remoto. 
-    // Solo imposta lo stato isRecording=true per mostrare l'indicatore visivo.
-    // Il blob arriverà dall'attore tramite handleAudioBlobFromGuest in App.jsx
-    console.log('[AudioRecorder] Host: recording state activated (waiting for blob from guest)');
-    setRecordingSource('remote');
-    currentTrackIdRef.current = trackId;
-    setIsRecording(true);
-  }, [remoteStream, role, startLocalRecording]);
-
-  const stopRecording = useCallback(() => {
-    if (role === 'host') {
-      // Host: semplicemente ferma lo stato di registrazione
-      // Non c'è MediaRecorder da fermare perché il host non registra
-      console.log('[AudioRecorder] Host: recording state deactivated');
-      setIsRecording(false);
+    // Host: se non c'è connessione, registra dal microfono locale
+    if (!isConnected) {
+      console.log('[AudioRecorder] Host: no connection, recording from LOCAL microphone');
+      setRecordingSource('local');
+      startLocalRecording(trackId);
       return;
     }
 
-    // Guest: ferma il MediaRecorder locale
+    // Host con connessione: NON registra localmente, aspetta blob dal guest
+    console.log('[AudioRecorder] Host: connected, waiting for blob from guest');
+    setRecordingSource('remote');
+    setIsRecording(true);
+  }, [isConnected, role, startLocalRecording]);
+
+  const stopRecording = useCallback(() => {
+    // Se stiamo registrando localmente (host senza connessione, o guest), ferma il MediaRecorder
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
     }
-  }, [isRecording, role]);
+    
+    // Resetta lo stato di registrazione
+    setIsRecording(false);
+    
+    // Se era una registrazione locale, ferma anche il mic stream
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
+    }
+    
+    // Ferma l'analizzatore
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
+    // Chiudi l'audio context
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+  }, [isRecording]);
 
   return {
     isRecording,
