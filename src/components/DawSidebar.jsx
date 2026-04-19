@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Settings2, Mic, Plus, Trash2, Edit2, X,
   Activity, Download, Copy, Check as CheckIcon, Wifi, WifiOff, Clock,
-  ChevronLeft, ChevronRight, Film, MessageSquare, Send, ChevronDown, ChevronUp
+  ChevronLeft, ChevronRight, Film, MessageSquare, Send, ChevronDown, ChevronUp,
+  KeyRound
 } from 'lucide-react';
 import VolumeMeter from './VolumeMeter';
 import { renderSingleClip } from '../utils/audioExport';
@@ -135,6 +136,8 @@ const DawSidebar = ({
   videoFileName,
   // Mobile sidebar class
   className,
+  // PIN props
+  sessionPin,
 }) => {
   const isDirector = sessionRole === 'host';
   const isActor = sessionRole === 'guest';
@@ -288,7 +291,33 @@ const DawSidebar = ({
         </div>
 
         <div className="room-box">
-          <input placeholder="ROOM ID..." value={roomName} onChange={(e) => setRoomName(e.target.value)} />
+          {isDirector ? (
+            // Director: show PIN display
+            <div className="pin-display">
+              <label className="pin-label"><KeyRound size={12} /> CODICE PIN</label>
+              <div className="pin-value">{sessionPin || '----'}</div>
+              <span className="pin-hint">Dai questo PIN all'attore per connettersi</span>
+            </div>
+          ) : (
+            // Actor: show PIN input
+            <div className="pin-input-wrap">
+              <label className="pin-label"><KeyRound size={12} /> INSERISCI PIN</label>
+              <input 
+                className="pin-input"
+                type="text" 
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
+                placeholder="4 cifre..." 
+                value={roomName} 
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                  setRoomName(val);
+                }} 
+              />
+              <span className="pin-hint">Inserisci il PIN fornito dal direttore</span>
+            </div>
+          )}
           <ConnectionIndicator connectionStatus={connectionStatus || (isConnected ? 'connected' : roomName ? 'waiting' : 'disconnected')} connectionError={connectionError} peerId={peerId} />
         </div>
       </div>

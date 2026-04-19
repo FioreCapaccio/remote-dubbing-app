@@ -112,8 +112,9 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
       return;
     }
 
-    const fullRoomId = `vocal-sync-room-${roomName}`;
-    const myId = role === 'host' ? fullRoomId : `guest-${Date.now()}`;
+    // Il roomName è ora il PIN a 4 cifre
+    const fullRoomId = `vocal-sync-pin-${roomName}`;
+    const myId = role === 'host' ? fullRoomId : `guest-${roomName}-${Date.now()}`;
     
     isDestroyedRef.current = false;
     retryCountRef.current = 0;

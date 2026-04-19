@@ -1,9 +1,74 @@
-import React from 'react';
-import { Mic, Zap, Headphones, Film, BookOpen, User, Users } from 'lucide-react';
+import React, { useState } from 'react';
+import { Mic, Zap, Headphones, Film, BookOpen, User, Users, Lock } from 'lucide-react';
+
+const DIRECTOR_PASSWORD = 'vocal2026'; // Password predefinita per il direttore
 
 const LandingPage = ({ onLaunch }) => {
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+
+  const handleDirectorClick = () => {
+    setShowPasswordModal(true);
+    setPassword('');
+    setPasswordError(false);
+  };
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (password === DIRECTOR_PASSWORD) {
+      setShowPasswordModal(false);
+      onLaunch('host');
+    } else {
+      setPasswordError(true);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowPasswordModal(false);
+    setPassword('');
+    setPasswordError(false);
+  };
+
   return (
     <div className="landing-container">
+      {/* Password Modal */}
+      {showPasswordModal && (
+        <div className="modal-overlay" onClick={handleCloseModal}>
+          <div className="password-modal" onClick={e => e.stopPropagation()}>
+            <div className="password-modal-header">
+              <Lock size={24} />
+              <h2>Accesso Direttore</h2>
+            </div>
+            <p className="password-modal-desc">Inserisci la password per accedere alla sala di controllo</p>
+            <form onSubmit={handlePasswordSubmit}>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPasswordError(false);
+                }}
+                placeholder="Password..."
+                className={passwordError ? 'error' : ''}
+                autoFocus
+              />
+              {passwordError && (
+                <span className="password-error">Password errata</span>
+              )}
+              <div className="password-modal-actions">
+                <button type="button" className="btn-secondary" onClick={handleCloseModal}>
+                  Annulla
+                </button>
+                <button type="submit" className="btn-primary">
+                  Accedi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
       <section className="hero">
         <div className="hero-overlay"></div>
@@ -23,7 +88,7 @@ const LandingPage = ({ onLaunch }) => {
             <div className="role-cards">
               <button 
                 className="role-card"
-                onClick={() => onLaunch('host')}
+                onClick={handleDirectorClick}
               >
                 <Users size={32} />
                 <span className="role-card-title">DIRETTORE</span>

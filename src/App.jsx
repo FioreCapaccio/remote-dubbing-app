@@ -29,6 +29,9 @@ const App = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
+  // PIN State for director
+  const [sessionPin, setSessionPin] = useState(null); // PIN a 4 cifre generato per il direttore
+
   // Application State
   const [videoURL, setVideoURL] = useState(null);
   const [videoFileName, setVideoFileName] = useState(null);
@@ -47,6 +50,17 @@ const App = () => {
   // DAW State
   const [roomName, setRoomName] = useState('');
   const [sessionRole, setSessionRole] = useState(initialRole);
+  
+  // Genera PIN casuale a 4 cifre quando il direttore entra
+  useEffect(() => {
+    if (initialRole === 'host' && view === 'app') {
+      const generatePin = () => Math.floor(1000 + Math.random() * 9000).toString();
+      const newPin = generatePin();
+      setSessionPin(newPin);
+      setRoomName(newPin); // Usa il PIN come room name
+      console.log('[App] Generated PIN for director:', newPin);
+    }
+  }, [initialRole, view]);
   
   // Update sessionRole when initialRole changes (from landing page)
   useEffect(() => {
@@ -937,6 +951,7 @@ const App = () => {
           audioSettings={audioSettings}
           videoFileName={videoFileName}
           className={sidebarOpen ? 'open' : ''}
+          sessionPin={sessionPin}
         />
         <div className="layout-divider-v" onMouseDown={(e) => { e.preventDefault(); isResizingHorizontal.current = true; document.body.style.cursor = 'col-resize'; }} />
         <main className="main-content">
