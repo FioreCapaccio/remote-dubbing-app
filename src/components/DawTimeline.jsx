@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Circle } from 'lucide-react';
+import { Plus, Circle, Trash2 } from 'lucide-react';
 import WaveformOverlay from './WaveformOverlay';
 import TrackVolumeMeter from './TrackVolumeMeter';
 import { useTrackMeters } from '../hooks/useTrackMeters';
@@ -185,8 +185,16 @@ const DawTimeline = ({
       volume: 1, 
       muted: false, 
       solo: false,
-      recEnabled: true // Default REC enabled
+      recEnabled: true, // Default REC enabled
+      deletable: true // Traccia aggiuntiva, cancellabile
     }]);
+  };
+
+  const deleteTrack = (trackId) => {
+    setTracks(prev => prev.filter(t => t.id !== trackId));
+    if (selectedTrackId === trackId) {
+      setSelectedTrackId(null);
+    }
   };
 
   const handleSplitClip = (trackId, clip) => {
@@ -326,7 +334,19 @@ const DawTimeline = ({
         {tracks.map(track => (
           <div key={track.id} className={`track-row ${selectedTrackId === track.id ? 'active-row' : ''}`} onClick={() => track.type !== 'video' && setSelectedTrackId(track.id)}>
             <div className="track-header-cell" style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}>
-              <span className="name">{track.name}</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className="name">{track.name}</span>
+                {/* Icona delete per tracce aggiuntive (non LEAD VOCAL) */}
+                {track.deletable && (
+                  <button
+                    className="track-delete-btn"
+                    title="Delete track"
+                    onClick={(e) => { e.stopPropagation(); deleteTrack(track.id); }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
+              </div>
               {/* Indicatore sorgente registrazione */}
               {isRecording && selectedTrackId === track.id && track.type === 'audio' && (
                 <span 

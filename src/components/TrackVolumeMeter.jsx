@@ -19,15 +19,7 @@ const TrackVolumeMeter = ({ dbLevel = -60 }) => {
   }
 
   return (
-    <div className="track-volume-meter" style={{
-      width: '100%',
-      height: '12px',
-      background: '#1a1a2e',
-      borderRadius: '2px',
-      overflow: 'hidden',
-      position: 'relative',
-      marginTop: '4px'
-    }}>
+    <div className="track-volume-meter">
       {/* Barra di livello */}
       <div 
         style={{
