@@ -30,8 +30,8 @@ const DawTimeline = ({
   const touchStartRef = useRef(null);
   const lastTouchTimeRef = useRef(0);
 
-  // Hook per monitorare i livelli audio delle tracce (semplificato, niente remoteStream)
-  const trackLevels = useTrackMeters(tracks);
+  // Hook per monitorare i livelli audio delle tracce
+  const trackLevels = useTrackMeters(tracks, videoRef);
 
   // Close context menu when clicking elsewhere
   useEffect(() => {
