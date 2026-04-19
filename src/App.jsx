@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Download, Upload, Tag, Folder, Menu, X } from 'lucide-react';
+import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Download, Upload, Tag, Folder, Menu, X, Users, Lock } from 'lucide-react';
 
 // Hooks
 import { useAudioRecorder } from './hooks/useAudioRecorder';
@@ -31,6 +31,16 @@ const App = () => {
 
   // PIN State for director
   const [sessionPin, setSessionPin] = useState(null); // PIN a 4 cifre generato per il direttore
+  
+  // Director password state
+  const [directorPassword, setDirectorPassword] = useState('Flower'); // Default password
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // Connected users management for director
+  const [connectedUsers, setConnectedUsers] = useState([]);
+  const [showUsersModal, setShowUsersModal] = useState(false);
 
   // Application State
   const [videoURL, setVideoURL] = useState(null);
@@ -141,7 +151,7 @@ const App = () => {
     }
   }, []);
 
-  const { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
+  const { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback, connections, disconnectUser } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper);
 
   // Hook per la registrazione audio - SOLO il direttore (host) registra dallo stream remoto
   // Il doppiatore (guest) NON registra - è solo sorgente audio
@@ -737,6 +747,30 @@ const App = () => {
     }
   }, []);
 
+  // ── Password Change Handler ────────────────────────────────────────────────
+  const handlePasswordChange = useCallback(() => {
+    if (newPassword.length < 4) {
+      alert('Password must be at least 4 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      alert('Passwords do not match');
+      return;
+    }
+    setDirectorPassword(newPassword);
+    setShowPasswordModal(false);
+    setNewPassword('');
+    setConfirmPassword('');
+    alert('Password changed successfully!');
+  }, [newPassword, confirmPassword]);
+
+  // ── User Management Handlers ───────────────────────────────────────────────
+  const handleDisconnectUser = useCallback((conn) => {
+    if (confirm('Disconnect this user?')) {
+      disconnectUser(conn);
+    }
+  }, [disconnectUser]);
+
   // ── Layout & Drag Listeners ────────────────────────────────────────────────
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -952,6 +986,9 @@ const App = () => {
           videoFileName={videoFileName}
           className={sidebarOpen ? 'open' : ''}
           sessionPin={sessionPin}
+          connections={connections}
+          onShowUsers={() => setShowUsersModal(true)}
+          onShowPassword={() => setShowPasswordModal(true)}
         />
         <div className="layout-divider-v" onMouseDown={(e) => { e.preventDefault(); isResizingHorizontal.current = true; document.body.style.cursor = 'col-resize'; }} />
         <main className="main-content">
@@ -1253,6 +1290,84 @@ const App = () => {
               <div className="modal-actions">
                 <button className="btn-close btn-secondary" onClick={() => setShowExportModal(false)}>CANCEL</button>
                 <button className="btn-close" onClick={handleConfirmExport}>EXPORT</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Password Change Modal */}
+        {showPasswordModal && (
+          <div className="modal-overlay" onClick={() => setShowPasswordModal(false)}>
+            <div className="settings-modal project-modal" onClick={e => e.stopPropagation()}>
+              <h2><Lock /> CHANGE PASSWORD</h2>
+              
+              <div className="project-form">
+                <div className="project-form-field">
+                  <label>New Password</label>
+                  <input 
+                    type="password" 
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password..."
+                    autoFocus
+                  />
+                </div>
+                
+                <div className="project-form-field">
+                  <label>Confirm Password</label>
+                  <input 
+                    type="password" 
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password..."
+                  />
+                </div>
+                
+                <span className="field-hint">Password must be at least 4 characters</span>
+              </div>
+
+              <div className="modal-actions">
+                <button className="btn-close btn-secondary" onClick={() => setShowPasswordModal(false)}>CANCEL</button>
+                <button className="btn-close" onClick={handlePasswordChange}>CHANGE</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Connected Users Modal */}
+        {showUsersModal && sessionRole === 'host' && (
+          <div className="modal-overlay" onClick={() => setShowUsersModal(false)}>
+            <div className="settings-modal project-modal" onClick={e => e.stopPropagation()}>
+              <h2><Users /> CONNECTED USERS</h2>
+              
+              <div className="project-list">
+                {connections.length === 0 ? (
+                  <div className="project-empty">No users connected.</div>
+                ) : (
+                  connections.map((conn, idx) => (
+                    <div key={conn.peer || idx} className="project-item">
+                      <div className="project-info">
+                        <div className="project-name">
+                          {conn.peer || `User ${idx + 1}`}
+                        </div>
+                        <div className="project-meta">
+                          Connected
+                        </div>
+                      </div>
+                      <button 
+                        className="project-delete-btn"
+                        onClick={() => handleDisconnectUser(conn)}
+                        title="Disconnect user"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="modal-actions">
+                <button className="btn-close btn-secondary" onClick={() => setShowUsersModal(false)}>CLOSE</button>
               </div>
             </div>
           </div>

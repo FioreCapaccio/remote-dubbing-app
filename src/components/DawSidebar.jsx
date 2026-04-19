@@ -3,7 +3,7 @@ import {
   Settings2, Mic, Plus, Trash2, Edit2, X,
   Activity, Download, Copy, Check as CheckIcon, Wifi, WifiOff, Clock,
   ChevronLeft, ChevronRight, Film, MessageSquare, Send, ChevronDown, ChevronUp,
-  KeyRound
+  KeyRound, Users, Lock
 } from 'lucide-react';
 import VolumeMeter from './VolumeMeter';
 import { renderSingleClip } from '../utils/audioExport';
@@ -138,6 +138,10 @@ const DawSidebar = ({
   className,
   // PIN props
   sessionPin,
+  // User management props
+  connections,
+  onShowUsers,
+  onShowPassword,
 }) => {
   const isDirector = sessionRole === 'host';
   const isActor = sessionRole === 'guest';
@@ -308,6 +312,28 @@ const DawSidebar = ({
           )}
           <ConnectionIndicator connectionStatus={connectionStatus || (isConnected ? 'connected' : roomName ? 'waiting' : 'disconnected')} connectionError={connectionError} peerId={peerId} />
         </div>
+        
+        {/* Director Controls - Users & Password */}
+        {isDirector && (
+          <div className="director-controls" style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+            <button 
+              className="btn-project" 
+              onClick={onShowUsers}
+              style={{ flex: 1, fontSize: '0.65rem' }}
+            >
+              <Users size={12} />
+              USERS {connections?.length > 0 && `(${connections.length})`}
+            </button>
+            <button 
+              className="btn-project" 
+              onClick={onShowPassword}
+              style={{ flex: 1, fontSize: '0.65rem' }}
+            >
+              <Lock size={12} />
+              PASSWORD
+            </button>
+          </div>
+        )}
       </div>
 
       {sessionRole === 'host' && (

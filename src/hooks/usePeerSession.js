@@ -46,6 +46,9 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
   const isDestroyedRef = useRef(false);
   const connectionRef = useRef(null);
 
+  const [connections, setConnections] = useState([]);
+  const connectionsRef = useRef([]);
+
   useEffect(() => {
     onRemoteCommandRef.current = onRemoteCommand;
   }, [onRemoteCommand]);
@@ -140,6 +143,12 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
       setConnection(conn);
       connectionRef.current = conn;
       
+      // Track connections for host (director)
+      if (role === 'host') {
+        connectionsRef.current = [...connectionsRef.current, conn];
+        setConnections(prev => [...prev, conn]);
+      }
+      
       conn.on('open', () => {
         console.log('[PeerSession] Data connection OPEN');
         setIsConnected(true);
@@ -169,6 +178,12 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
         setIsConnected(false);
         setConnection(null);
         setConnectionStatus('waiting');
+        
+        // Remove from connections list for host
+        if (role === 'host') {
+          connectionsRef.current = connectionsRef.current.filter(c => c !== conn);
+          setConnections(prev => prev.filter(c => c !== conn));
+        }
         
         // Auto-reconnect for guest side con backoff esponenziale
         if (role === 'guest' && peer && !peer.destroyed && !isDestroyedRef.current) {
@@ -346,6 +361,15 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     }
   }, [connection, isConnected]);
 
+  const disconnectUser = useCallback((conn) => {
+    if (conn) {
+      console.log('[PeerSession] Disconnecting user:', conn.peer);
+      conn.close();
+      connectionsRef.current = connectionsRef.current.filter(c => c !== conn);
+      setConnections(prev => prev.filter(c => c !== conn));
+    }
+  }, []);
+
   const startTalkback = useCallback(async () => {
     console.log('[PeerSession] Manual startTalkback called');
     await startTalkbackInternal();
@@ -363,5 +387,5 @@ export const usePeerSession = (roomName, role, onRemoteCommand) => {
     }
   }, []);
 
-  return { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback };
+  return { peerId, isConnected, connectionStatus, connectionError, sendCommand, remoteStream, startTalkback, stopTalkback, connections, disconnectUser };
 };
