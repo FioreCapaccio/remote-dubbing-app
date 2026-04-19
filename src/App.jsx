@@ -405,7 +405,7 @@ const App = () => {
     internalTimeRef.current = 0;
     setCurrentTime(0);
     
-    // Send SEEK command if connected
+    // Send STOP and SEEK commands to sync with actor (works with or without video)
     if (sendCommandRef.current) {
       sendCommandRef.current({ type: 'PAUSE' });
       sendCommandRef.current({ type: 'SEEK', time: 0 });
@@ -421,13 +421,15 @@ const App = () => {
       else { videoRef.current.play(); if (sendCommandRef.current) sendCommandRef.current({ type: 'PLAY' }); }
       setIsPlaying(!isPlaying);
     } else {
-      // No video loaded: use internal timer
+      // No video loaded: use internal timer and sync with actor
       if (isPlaying) {
         stopInternalPlayhead();
         setIsPlaying(false);
+        if (sendCommandRef.current) sendCommandRef.current({ type: 'PAUSE' });
       } else {
         startInternalPlayhead(internalTimeRef.current);
         setIsPlaying(true);
+        if (sendCommandRef.current) sendCommandRef.current({ type: 'PLAY' });
       }
     }
   }, [isPlaying, startInternalPlayhead, stopInternalPlayhead]);
