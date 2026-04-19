@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Circle, Trash2, X } from 'lucide-react';
 import WaveformOverlay from './WaveformOverlay';
-import VintageVUMeter from './VintageVUMeter';
-import { useTrackMeters } from '../hooks/useTrackMeters';
 
 const STATUS_COLORS = {
   todo: '#8b949e',
@@ -30,9 +28,6 @@ const DawTimeline = ({
   const timelineRef = useRef(null);
   const touchStartRef = useRef(null);
   const lastTouchTimeRef = useRef(0);
-
-  // Hook per monitorare i livelli audio delle tracce
-  const trackLevels = useTrackMeters(tracks, videoRef, isRecording, recordingSource);
 
   // Close context menu when clicking elsewhere
   useEffect(() => {
@@ -411,10 +406,6 @@ const DawTimeline = ({
                 onPointerDown={e => e.stopPropagation()}
                 onClick={e => e.stopPropagation()}
               />
-              {/* Volume Meter per tracce audio */}
-              {track.type === 'audio' && (
-                <VintageVUMeter dbLevel={trackLevels[track.id] ?? -60} trackId={track.id} />
-              )}
             </div>
             <div className="track-lane-cell">
               {track.type === 'video' && videoURL && duration > 0 && (

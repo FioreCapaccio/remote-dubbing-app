@@ -9,8 +9,9 @@ import React, { useEffect, useRef, useState } from 'react';
  * - level: valore in dB già calcolato (modalità display solo valore)
  * - audioSource: 'local' | 'remote' (info aggiuntiva)
  * - isActive: se false, disabilita l'analisi
+ * - showValue: se false, nasconde il valore numerico (default: true)
  */
-const VolumeMeter = ({ stream, level, audioSource = 'local', isActive = true }) => {
+const VolumeMeter = ({ stream, level, audioSource = 'local', isActive = true, showValue = true }) => {
   const canvasRef = useRef(null);
   const animationFrameRef = useRef(null);
   const analyserRef = useRef(null);
@@ -69,12 +70,14 @@ const VolumeMeter = ({ stream, level, audioSource = 'local', isActive = true }) 
         ctx.lineTo(redX, height);
         ctx.stroke();
 
-        // Mostra valore dB
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'right';
-        const displayDb = dbLevelFromProp === -Infinity ? '-∞' : Math.round(dbLevelFromProp);
-        ctx.fillText(`${displayDb}dB`, width - 4, height - 2);
+        // Mostra valore dB solo se showValue è true
+        if (showValue) {
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '10px monospace';
+          ctx.textAlign = 'right';
+          const displayDb = dbLevelFromProp === -Infinity ? '-∞' : Math.round(dbLevelFromProp);
+          ctx.fillText(`${displayDb}dB`, width - 4, height - 2);
+        }
 
         animationFrameRef.current = requestAnimationFrame(drawFromProp);
       };
@@ -179,11 +182,13 @@ const VolumeMeter = ({ stream, level, audioSource = 'local', isActive = true }) 
           ctx.lineTo(redX, height);
           ctx.stroke();
 
-          // Mostra valore dB
-          ctx.fillStyle = '#ffffff';
-          ctx.font = '10px monospace';
-          ctx.textAlign = 'right';
-          ctx.fillText(`${Math.round(clampedDb)}dB`, width - 4, height - 2);
+          // Mostra valore dB solo se showValue è true
+          if (showValue) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText(`${Math.round(clampedDb)}dB`, width - 4, height - 2);
+          }
 
           animationFrameRef.current = requestAnimationFrame(draw);
         };

@@ -672,7 +672,7 @@ const DawSidebar = ({
           <>
             <div className="meter-wrapper">
               <div className="meter-label">MASTER PEAK</div>
-              <VolumeMeter level={peakLevel} />
+              <VolumeMeter level={peakLevel} showValue={false} />
             </div>
             <button 
               className={`export-btn ${isExporting ? 'loading' : ''}`} 
