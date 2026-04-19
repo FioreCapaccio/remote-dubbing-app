@@ -4,6 +4,7 @@ import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Upload, Tag
 // Hooks
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { usePeerSession } from './hooks/usePeerSession';
+import { useAudioAnalysis } from './hooks/useAudioAnalysis';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
@@ -233,6 +234,63 @@ const App = () => {
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
     selectedOutput, setOutputDevice, peakLevel, startRecording, stopRecording, recordingSource
   } = useAudioRecorder(audioSettings, isConnected, remoteStream, sessionRole, handleRecordingBlob);
+
+  // Audio Analysis Hook
+  const { 
+    isAnalyzing, 
+    analysisProgress, 
+    analysisStatus, 
+    analyzeAudio, 
+    resetAnalysis 
+  } = useAudioAnalysis();
+
+  // Check if we can analyze audio (video with audio must be loaded)
+  const canAnalyzeAudio = videoURL && videoRef.current && !isAnalyzing;
+
+  // Handle audio analysis and automatic cue insertion
+  const handleAnalyzeAudio = useCallback(async () => {
+    if (!canAnalyzeAudio || !videoRef.current) return;
+    
+    try {
+      const phraseStarts = await analyzeAudio(videoRef.current);
+      
+      if (phraseStarts.length === 0) {
+        alert('Nessuna frase rilevata nell\'audio. Prova a regolare la soglia di silenzio.');
+        return;
+      }
+
+      // Chiedi conferma prima di aggiungere i cue
+      const confirmed = confirm(`Rilevate ${phraseStarts.length} frasi. Vuoi aggiungerle come cue ADR?`);
+      
+      if (confirmed) {
+        // Crea nuovi cue per ogni frase rilevata
+        const newCues = phraseStarts.map((time, index) => ({
+          id: Date.now() + index,
+          timeIn: time,
+          timeOut: null,
+          character: '',
+          text: `Frase ${index + 1}`,
+          status: 'todo'
+        }));
+
+        // Unisci con cue esistenti e ordina per tempo
+        const mergedCues = [...cues, ...newCues].sort((a, b) => a.timeIn - b.timeIn);
+        setCues(mergedCues);
+        
+        // Sincronizza con gli altri peer
+        if (sendCommandRef.current) {
+          sendCommandRef.current({ type: 'CUE_SYNC', cues: mergedCues });
+        }
+
+        alert(`Aggiunti ${newCues.length} cue automaticamente!`);
+      }
+    } catch (error) {
+      if (error.message !== 'Analisi annullata') {
+        console.error('Errore analisi:', error);
+        alert('Errore durante l\'analisi: ' + error.message);
+      }
+    }
+  }, [canAnalyzeAudio, analyzeAudio, cues]);
 
   // Sync recording functions to refs for handleRemoteCommand
   useEffect(() => {
@@ -1091,6 +1149,11 @@ const App = () => {
           onShowUsers={() => setShowUsersModal(true)}
           recordingStatus={recordingStatus}
           isRecording={isRecording}
+          onAnalyzeAudio={handleAnalyzeAudio}
+          isAnalyzing={isAnalyzing}
+          analysisProgress={analysisProgress}
+          analysisStatus={analysisStatus}
+          canAnalyzeAudio={canAnalyzeAudio}
         />
         <div className="layout-divider-v" onMouseDown={(e) => { e.preventDefault(); isResizingHorizontal.current = true; document.body.style.cursor = 'col-resize'; }} />
         <main className="main-content">

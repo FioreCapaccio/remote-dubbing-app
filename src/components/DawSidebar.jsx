@@ -3,7 +3,7 @@ import {
   Settings2, Mic, Plus, Trash2, Edit2, X,
   Activity, Download, Copy, Check as CheckIcon, Wifi, WifiOff, Clock,
   ChevronLeft, ChevronRight, Film, MessageSquare, Send, ChevronDown, ChevronUp,
-  KeyRound, Users, Radio, Upload, Download as DownloadIcon
+  KeyRound, Users, Radio, Upload, Download as DownloadIcon, Wand2
 } from 'lucide-react';
 import VolumeMeter from './VolumeMeter';
 import { renderSingleClip } from '../utils/audioExport';
@@ -144,6 +144,12 @@ const DawSidebar = ({
   // Recording status props
   recordingStatus,
   isRecording,
+  // Audio analysis props
+  onAnalyzeAudio,
+  isAnalyzing,
+  analysisProgress,
+  analysisStatus,
+  canAnalyzeAudio,
 }) => {
   const isDirector = sessionRole === 'host';
   const isActor = sessionRole === 'guest';
@@ -420,6 +426,85 @@ const DawSidebar = ({
             )}
           </div>
         </div>
+
+        {/* Audio Analysis Button */}
+        {isDirector && (
+          <div className="audio-analysis-section" style={{ marginBottom: '12px' }}>
+            <button
+              className={`btn-analyze-audio ${isAnalyzing ? 'analyzing' : ''} ${!canAnalyzeAudio ? 'disabled' : ''}`}
+              onClick={onAnalyzeAudio}
+              disabled={isAnalyzing || !canAnalyzeAudio}
+              title={canAnalyzeAudio ? 'Analizza audio e rileva inizio frasi automaticamente' : 'Carica un video con audio per analizzare'}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                background: isAnalyzing ? 'linear-gradient(90deg, #4a9eff 0%, #6b5ce7 100%)' : 'linear-gradient(90deg, #6b5ce7 0%, #4a9eff 100%)',
+                border: 'none',
+                borderRadius: '6px',
+                color: '#fff',
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                letterSpacing: '0.05em',
+                cursor: isAnalyzing || !canAnalyzeAudio ? 'not-allowed' : 'pointer',
+                opacity: !canAnalyzeAudio ? 0.5 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              {isAnalyzing ? (
+                <>
+                  <Activity size={14} className="spin" />
+                  <span>ANALISI IN CORSO...</span>
+                </>
+              ) : (
+                <>
+                  <Wand2 size={14} />
+                  <span>ANALIZZA AUDIO</span>
+                </>
+              )}
+            </button>
+
+            {/* Progress Bar */}
+            {isAnalyzing && (
+              <div style={{ marginTop: '8px' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '4px',
+                    background: 'rgba(255,255,255,0.1)',
+                    borderRadius: '2px',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${analysisProgress}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #00ff88 0%, #4a9eff 100%)',
+                      borderRadius: '2px',
+                      transition: 'width 0.1s ease'
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    fontSize: '0.6rem',
+                    color: 'var(--text-muted)',
+                    marginTop: '4px',
+                    textAlign: 'center'
+                  }}
+                >
+                  {analysisStatus}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="cue-list-scroll">
           {cues.length === 0 && (
