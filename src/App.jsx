@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Upload, Tag, Folder, Menu, X, Users, Lock } from 'lucide-react';
+import { Settings2, HardDrive, Headphones, FolderOpen, Trash2, Save, Upload, Tag, Folder, Menu, X, Users, Lock, FolderUp } from 'lucide-react';
 
 // Hooks
 import { useAudioRecorder } from './hooks/useAudioRecorder';
@@ -15,7 +15,7 @@ import VideoPreview from './components/VideoPreview';
 
 // Utils
 import { renderMixdown } from './utils/audioExport';
-import { saveProject, loadProject, listProjects, deleteProject, exportProjectToFile, importProjectFromFile, isFileSystemAccessSupported } from './utils/projectStorage';
+import { saveProject, loadProject, listProjects, deleteProject, exportProjectToFile, importProjectFromFile, isFileSystemAccessSupported, pickDirectory } from './utils/projectStorage';
 
 // Styles
 import './index.css';
@@ -121,6 +121,8 @@ const App = () => {
   const [projectCategory, setProjectCategory] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
+  const [saveDirectoryHandle, setSaveDirectoryHandle] = useState(null);
+  const [saveDirectoryName, setSaveDirectoryName] = useState('');
 
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -700,6 +702,8 @@ const App = () => {
     setProjectName(videoFileName ? videoFileName.replace(/\.[^/.]+$/, '') : 'Untitled Project');
     setProjectCategory('');
     setProjectDescription('');
+    setSaveDirectoryHandle(null);
+    setSaveDirectoryName('');
     setShowProjectModal(true);
   }, [videoFileName]);
 
@@ -725,21 +729,35 @@ const App = () => {
       // 1. Salva sempre in IndexedDB come backup/indice
       const savedProject = await saveProject(name, state, options);
       
-      // 2. Esporta sempre come file JSON per backup/condivisione
+      // 2. Esporta come file JSON - con directory picker se selezionato
       const filename = `${name.replace(/[^a-zA-Z0-9_-]/g, '_')}_VocalSync.json`;
       await exportProjectToFile(name, state, {
         ...options,
-        filename
-        // directoryHandle non specificato = download automatico
+        filename,
+        directoryHandle: saveDirectoryHandle || undefined
       });
       
-      alert(`Project "${name}" saved to IndexedDB and exported as "${filename}"!`);
+      const locationMsg = saveDirectoryHandle ? `in "${saveDirectoryName}"` : '(download automatico)';
+      alert(`Project "${name}" saved to IndexedDB and exported as "${filename}" ${locationMsg}!`);
       setShowProjectModal(false);
     } catch (err) {
       console.error('Save failed:', err);
       alert('Failed to save project. Please try again.');
     }
-  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription]);
+  }, [cues, tracks, audioSettings, videoFileName, projectName, projectCategory, projectDescription, saveDirectoryHandle, saveDirectoryName]);
+
+  const handlePickSaveDirectory = useCallback(async () => {
+    try {
+      const dirHandle = await pickDirectory();
+      if (dirHandle) {
+        setSaveDirectoryHandle(dirHandle);
+        setSaveDirectoryName(dirHandle.name);
+      }
+    } catch (err) {
+      console.error('Directory picker failed:', err);
+      alert('Failed to select directory. Please try again.');
+    }
+  }, []);
 
   const handleImportProjectFromFile = useCallback(async (file) => {
     try {
@@ -1302,6 +1320,32 @@ const App = () => {
                     rows={3}
                   />
                 </div>
+
+                {/* Directory Picker Section */}
+                {isFileSystemAccessSupported() && (
+                  <div className="project-form-field">
+                    <label><FolderUp size={14} /> Save Location</label>
+                    <div className="directory-picker-row">
+                      <button 
+                        className="btn-directory-picker"
+                        onClick={handlePickSaveDirectory}
+                        type="button"
+                      >
+                        {saveDirectoryHandle ? 'Change Folder' : 'Choose Folder'}
+                      </button>
+                      <span className="directory-picker-path">
+                        {saveDirectoryName 
+                          ? `📁 ${saveDirectoryName}` 
+                          : '💾 Download (default)'}
+                      </span>
+                    </div>
+                    <span className="field-hint">
+                      {saveDirectoryHandle 
+                        ? 'File will be saved to the selected folder' 
+                        : 'File will be downloaded to your default downloads folder'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="modal-actions">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Pause, Square, ZoomIn, ZoomOut, Save, FolderOpen, FilePlus, FileSpreadsheet } from 'lucide-react';
+import { Play, Pause, Square, ZoomIn, ZoomOut, Save, FolderOpen, FilePlus, FileSpreadsheet, Upload } from 'lucide-react';
 import AdrImportWizard from './AdrImportWizard';
 
 const toSMPTE = (t) => {
@@ -75,6 +75,14 @@ const DawTransport = ({
               >
                 <Save size={16} />
                 <span className="btn-label">SALVA</span>
+              </button>
+              <button
+                onClick={onLoadProject}
+                className="btn-transport btn-project"
+                title="Load Project"
+              >
+                <Upload size={16} />
+                <span className="btn-label">CARICA</span>
               </button>
               <button
                 onClick={() => setShowImportWizard(true)}

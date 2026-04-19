@@ -2714,6 +2714,42 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'DejaVu
   font-weight: 600;
 }
 
+/* Directory Picker Row Styles (for Save Modal) */
+.directory-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.btn-directory-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-directory-picker:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: var(--accent);
+}
+
+.directory-picker-path {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 .project-filter {
   display: flex;
   align-items: center;
