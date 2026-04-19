@@ -139,12 +139,39 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       console.log('[AudioRecorder] Starting recording from REMOTE stream (dubber mic)');
       setRecordingSource('remote');
       
-      // Usa codec audio di alta qualità: Opus a 128kbps
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : 'audio/ogg;codecs=opus';
+      // Rileva il codec supportato per la registrazione
+      // Nota: alcuni browser non supportano la registrazione di stream remoti con certi codec
+      const supportedMimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/mp4;codecs=mp4a.40.2',
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+        'audio/wav'
+      ];
+      
+      let mimeType = '';
+      for (const type of supportedMimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          // Verifica anche che il browser possa registrare questo stream con questo codec
+          try {
+            const testRecorder = new MediaRecorder(remoteStream, { mimeType: type });
+            testRecorder.ondataavailable = () => {};
+            mimeType = type;
+            console.log('[AudioRecorder] Found supported mimeType:', type);
+            break;
+          } catch (e) {
+            console.log('[AudioRecorder] MimeType', type, 'not supported for this stream:', e.message);
+          }
+        }
+      }
+
+      if (!mimeType) {
+        console.error('[AudioRecorder] No supported mimeType found for remote stream recording');
+        alert('Errore: Il tuo browser non supporta la registrazione audio da stream remoto.\n\nProva a usare Chrome o Firefox aggiornati.');
+        return;
+      }
 
       const recorderOptions = {
         mimeType,
@@ -176,12 +203,22 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         setTakes((prev) => [newTake, ...prev]);
       };
 
+      mediaRecorder.onerror = (event) => {
+        console.error('[AudioRecorder] MediaRecorder error:', event);
+        alert('Errore durante la registrazione: ' + (event.message || 'Errore sconosciuto'));
+        setIsRecording(false);
+      };
+
       mediaRecorder.start(100); // timeslice di 100ms per cattura più granulare
       setIsRecording(true);
       console.log('[AudioRecorder] Recording started successfully from remote stream');
     } catch (err) {
-      console.error('Error recording:', err);
-      alert('Error: ' + err.message);
+      console.error('[AudioRecorder] Error starting recording:', err);
+      if (err.name === 'NotSupportedError') {
+        alert('Errore: Il codec audio non è supportato per la registrazione da stream remoto.\n\nProva a usare Chrome o Firefox aggiornati, o verifica che il doppiatore sia connesso.');
+      } else {
+        alert('Errore durante l\'avvio della registrazione: ' + err.message);
+      }
     }
   }, [remoteStream, role]);
 
