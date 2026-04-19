@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Video } from 'lucide-react';
+import { Video, RefreshCw } from 'lucide-react';
 
 const VideoPreview = ({ 
   videoHeight, videoURL, videoRef, 
@@ -88,6 +88,26 @@ const VideoPreview = ({
               <div className="countdown-hint">ESC or REC to cancel</div>
             </div>
           )}
+          {/* Change Video button */}
+          <button 
+            className="change-video-btn"
+            onClick={() => fileInputRef.current?.click()}
+            title="Change video"
+          >
+            <RefreshCw size={16} />
+            <span>CHANGE VIDEO</span>
+          </button>
+          <input 
+            ref={fileInputRef}
+            type="file" 
+            accept="video/*" 
+            style={{ display: 'none' }} 
+            onChange={(e) => {
+              const f = e.target.files[0];
+              if (f) loadFile(f);
+              e.target.value = '';
+            }} 
+          />
         </div>
       ) : (
         <div className="v-placeholder">

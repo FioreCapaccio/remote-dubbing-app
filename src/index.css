@@ -285,6 +285,42 @@ body { background: var(--bg-main); color: var(--text-main); font-family: 'Inter'
 .v-placeholder { color: #161b22; font-weight: 950; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; cursor: pointer; }
 .v-placeholder:hover { color: var(--text-muted); }
 
+/* Change Video Button */
+.change-video-btn {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  backdrop-filter: blur(4px);
+  z-index: 50;
+}
+
+.change-video-btn:hover {
+  background: rgba(0, 251, 130, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.change-video-btn svg {
+  transition: transform 0.3s ease;
+}
+
+.change-video-btn:hover svg {
+  transform: rotate(180deg);
+}
+
 /* Integrated HD Timeline */
 .timeline-daw-integrated { flex: 1; background: #080a0e; overflow-y: auto; overflow-x: auto; position: relative; }
 
