@@ -375,28 +375,52 @@ const DawTimeline = ({
                   {recordingSource === 'remote' ? 'REMOTE' : 'LOCAL'}
                 </span>
               )}
+              {/* Logic Pro M/S/R/I + volume controls */}
               <div className="row-controls">
-                {track.type === 'audio' && (
-                  <button
-                    className={`rec-btn ${track.recEnabled !== false ? 'rec-on' : ''}`}
-                    title={track.recEnabled !== false ? 'REC On (click to disable)' : 'REC Off (click to enable)'}
-                    onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'recEnabled', track.recEnabled === false ? true : false); }}
-                  >
-                    <Circle size={10} fill={track.recEnabled !== false ? "#ff4444" : "transparent"} color="#ff4444" />
-                  </button>
-                )}
+                {/* M — Mute */}
                 <button
                   className={track.muted ? 'm-on' : ''}
                   title={track.muted ? 'Unmute' : 'Mute'}
                   onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'muted', !track.muted); }}
+                  style={{ color: track.muted ? undefined : '#888' }}
                 >M</button>
+                {/* S — Solo */}
                 <button
                   className={track.solo ? 's-on' : ''}
                   title={track.solo ? 'Unsolo' : 'Solo'}
                   onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'solo', !track.solo); }}
+                  style={{ color: track.solo ? undefined : '#888' }}
                 >S</button>
+                {/* R — Record arm (audio tracks only) */}
+                {track.type === 'audio' && (
+                  <button
+                    className={`rec-btn ${track.recEnabled !== false ? 'rec-on' : ''}`}
+                    title={track.recEnabled !== false ? 'REC armed (click to disarm)' : 'REC disarmed (click to arm)'}
+                    onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'recEnabled', track.recEnabled === false ? true : false); }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Circle size={8} fill={track.recEnabled !== false ? "#ff4444" : "transparent"} color={track.recEnabled !== false ? "#ff4444" : "#553333"} />
+                  </button>
+                )}
+                {/* I — Input monitor */}
+                {track.type === 'audio' && (
+                  <button
+                    className={track.inputMonitor ? 'i-on' : ''}
+                    title={track.inputMonitor ? 'Input monitor on' : 'Input monitor off'}
+                    onClick={(e) => { e.stopPropagation(); updateTrack(track.id, 'inputMonitor', !track.inputMonitor); }}
+                    style={{
+                      color: track.inputMonitor ? '#fff' : '#555',
+                      background: track.inputMonitor
+                        ? 'linear-gradient(180deg, #1a3a7a 0%, #0d2555 100%)'
+                        : undefined,
+                      borderColor: track.inputMonitor ? '#3b82f6' : undefined,
+                      boxShadow: track.inputMonitor ? '0 2px 6px rgba(59,130,246,0.5), inset 0 1px 0 rgba(255,255,255,0.1)' : undefined
+                    }}
+                  >I</button>
+                )}
                 <span className="vol-pct" onClick={e => e.stopPropagation()}>{Math.round(track.volume * 100)}%</span>
               </div>
+              {/* 3D Horizontal Fader */}
               <input
                 type="range" min="0" max="1" step="0.01"
                 value={track.volume}
