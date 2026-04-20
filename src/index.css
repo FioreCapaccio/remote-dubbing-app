@@ -363,11 +363,11 @@ body {
     inset 0 -1px 0 rgba(0,0,0,0.5);
 }
 .btn-stop:hover {
-  background: radial-gradient(circle at 35% 30%, #5a4040, #2d1a1a 70%);
-  border-color: rgba(224,50,50,0.5);
-  color: var(--record);
+  background: radial-gradient(circle at 35% 30%, #3a4a5a, #1a2a3a 70%);
+  border-color: rgba(80,160,255,0.5);
+  color: #60a5fa;
   box-shadow:
-    0 4px 12px rgba(224,50,50,0.25),
+    0 4px 12px rgba(80,160,255,0.25),
     inset 0 1px 0 rgba(255,255,255,0.08),
     inset 0 -1px 0 rgba(0,0,0,0.6);
 }
