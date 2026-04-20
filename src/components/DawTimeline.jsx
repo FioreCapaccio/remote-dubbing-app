@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Circle, Trash2, X } from 'lucide-react';
 import WaveformOverlay from './WaveformOverlay';
+import ConfirmModal from './ConfirmModal';
 
 const STATUS_COLORS = {
   todo: '#8b949e',
@@ -28,6 +29,33 @@ const DawTimeline = ({
   const timelineRef = useRef(null);
   const touchStartRef = useRef(null);
   const lastTouchTimeRef = useRef(0);
+  const playheadRef = useRef(null); // DOM ref per il playhead
+  const rafRef = useRef(null);
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: null });
+  const showConfirm = (message, onConfirm) => setConfirmDialog({ open: true, message, onConfirm });
+  const handleConfirmOk = () => {
+    if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+    setConfirmDialog({ open: false, message: '', onConfirm: null });
+  };
+  const handleConfirmCancel = () => setConfirmDialog({ open: false, message: '', onConfirm: null });
+
+  // RAF loop per aggiornare il playhead in modo fluido (indipendente dal React state)
+  useEffect(() => {
+    const animate = () => {
+      if (playheadRef.current && internalTimeRef) {
+        const t = videoRef?.current ? videoRef.current.currentTime : (internalTimeRef.current || 0);
+        const left = sidebarWidth + t * zoomLevel;
+        playheadRef.current.style.left = `${left}px`;
+      }
+      rafRef.current = requestAnimationFrame(animate);
+    };
+    rafRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [sidebarWidth, zoomLevel, videoRef, internalTimeRef]);
 
   // Close context menu when clicking elsewhere
   useEffect(() => {
@@ -186,26 +214,30 @@ const DawTimeline = ({
     }]);
   };
 
-  const deleteTrack = (trackId) => {
-    setTracks(prev => prev.filter(t => t.id !== trackId));
-    if (selectedTrackId === trackId) {
-      setSelectedTrackId(null);
-    }
+  const deleteTrack = (trackId, trackName) => {
+    showConfirm(`Sei sicuro di voler eliminare la traccia "${trackName}"?`, () => {
+      setTracks(prev => prev.filter(t => t.id !== trackId));
+      if (selectedTrackId === trackId) {
+        setSelectedTrackId(null);
+      }
+    });
   };
 
   // Funzione per cancellare una clip (solo per l'attore sulla propria registrazione)
   const deleteClip = (trackId, clipId) => {
-    setTracks(prev => prev.map(t => {
-      if (t.id !== trackId) return t;
-      return {
-        ...t,
-        clips: t.clips.filter(c => c.id !== clipId)
-      };
-    }));
-    if (selectedClipId === clipId) {
-      setSelectedClipId(null);
-    }
-    setContextMenu(null);
+    showConfirm('Sei sicuro di voler eliminare questa registrazione?', () => {
+      setTracks(prev => prev.map(t => {
+        if (t.id !== trackId) return t;
+        return {
+          ...t,
+          clips: t.clips.filter(c => c.id !== clipId)
+        };
+      }));
+      if (selectedClipId === clipId) {
+        setSelectedClipId(null);
+      }
+      setContextMenu(null);
+    });
   };
 
   const handleSplitClip = (trackId, clip) => {
@@ -352,7 +384,7 @@ const DawTimeline = ({
                   <button
                     className="track-delete-btn"
                     title="Delete track"
-                    onClick={(e) => { e.stopPropagation(); deleteTrack(track.id); }}
+                    onClick={(e) => { e.stopPropagation(); deleteTrack(track.id, track.name); }}
                   >
                     <Trash2 size={12} />
                   </button>
@@ -494,7 +526,7 @@ const DawTimeline = ({
           <Plus size={14} /> ADD TRACK
         </button>
       </div>
-      <div className="global-playhead" style={{ left: `${sidebarWidth + currentTime * zoomLevel}px` }}>
+      <div className="global-playhead" ref={playheadRef} style={{ left: `${sidebarWidth + currentTime * zoomLevel}px` }}>
         <div 
           className="playhead-handle" 
           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); isScrubbingRef.current = true; }} 
@@ -538,6 +570,12 @@ const DawTimeline = ({
           </button>
         </div>
       )}
+      <ConfirmModal
+        isOpen={confirmDialog.open}
+        message={confirmDialog.message}
+        onConfirm={handleConfirmOk}
+        onCancel={handleConfirmCancel}
+      />
     </section>
   );
 };

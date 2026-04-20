@@ -6,6 +6,7 @@ import {
   KeyRound, Users, Radio, Upload, Download as DownloadIcon, Wand2, FileSpreadsheet
 } from 'lucide-react';
 import VolumeMeter from './VolumeMeter';
+import ConfirmModal from './ConfirmModal';
 import { renderSingleClip } from '../utils/audioExport';
 
 const ConnectionIndicator = ({ connectionStatus, connectionError, peerId }) => {
@@ -168,6 +169,15 @@ const DawSidebar = ({
   // Cue editing state: { cueId: { field: value } }
   const [editingCue, setEditingCue] = useState(null);
   const [editValues, setEditValues] = useState({});
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: null });
+  const showConfirm = (message, onConfirm) => setConfirmDialog({ open: true, message, onConfirm });
+  const handleConfirmOk = () => {
+    if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+    setConfirmDialog({ open: false, message: '', onConfirm: null });
+  };
+  const handleConfirmCancel = () => setConfirmDialog({ open: false, message: '', onConfirm: null });
 
   // Microphone gain state for LEAD VOCAL track (actor only)
   const [micGain, setMicGain] = useState(1);
@@ -659,9 +669,9 @@ const DawSidebar = ({
             };
             
             const handleDelete = () => {
-              if (confirm('Delete this cue?')) {
+              showConfirm('Sei sicuro di voler eliminare questo cue?', () => {
                 onDeleteCue(cue.id);
-              }
+              });
             };
             
             return (
@@ -880,6 +890,12 @@ const DawSidebar = ({
           </div>
         )}
       </div>
+      <ConfirmModal
+        isOpen={confirmDialog.open}
+        message={confirmDialog.message}
+        onConfirm={handleConfirmOk}
+        onCancel={handleConfirmCancel}
+      />
     </aside>
   );
 };

@@ -13,6 +13,7 @@ import DawSidebar from './components/DawSidebar';
 import DawTransport from './components/DawTransport';
 import DawTimeline from './components/DawTimeline';
 import VideoPreview from './components/VideoPreview';
+import ConfirmModal from './components/ConfirmModal';
 
 // Utils
 import { renderMixdown } from './utils/audioExport';
@@ -126,6 +127,22 @@ const App = () => {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
   const [saveDirectoryHandle, setSaveDirectoryHandle] = useState(null);
   const [saveDirectoryName, setSaveDirectoryName] = useState('');
+
+  // Confirm dialog state (sostituisce window.confirm nativo)
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: null });
+
+  const showConfirm = useCallback((message, onConfirm) => {
+    setConfirmDialog({ open: true, message, onConfirm });
+  }, []);
+
+  const handleConfirmOk = useCallback(() => {
+    if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+    setConfirmDialog({ open: false, message: '', onConfirm: null });
+  }, [confirmDialog]);
+
+  const handleConfirmCancel = useCallback(() => {
+    setConfirmDialog({ open: false, message: '', onConfirm: null });
+  }, []);
 
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
@@ -432,6 +449,18 @@ const App = () => {
 
   // ── Action Handlers ────────────────────────────────────────────────────────
   const handleStop = useCallback(() => {
+    // Se la registrazione è attiva, fermala prima
+    if (isRecording) {
+      if (sessionRole === 'host' && sendCommandRef.current) {
+        sendCommandRef.current({ type: 'STOP_RECORDING' });
+      }
+      stopRecording();
+      setRecordingStatus('idle');
+    }
+
+    // Annulla il countdown se attivo
+    cancelCountdown();
+
     // Pause playback
     if (videoRef.current) {
       videoRef.current.pause();
@@ -452,7 +481,7 @@ const App = () => {
       sendCommandRef.current({ type: 'PAUSE' });
       sendCommandRef.current({ type: 'SEEK', time: 0 });
     }
-  }, [stopInternalPlayhead]);
+  }, [isRecording, sessionRole, stopRecording, cancelCountdown, stopInternalPlayhead]);
 
   // Debounce ref for REC button to prevent double-triggering
   const isProcessingRecRef = useRef(false);
@@ -716,7 +745,7 @@ const App = () => {
 
   // ── Project Management Handlers ────────────────────────────────────────────
   const handleNewProject = useCallback(() => {
-    if (confirm('Create a new project? All unsaved changes will be lost.')) {
+    showConfirm('Creare un nuovo progetto? Tutte le modifiche non salvate andranno perse.', () => {
       // Reset all state to default
       setCues([]);
       setTracks([
@@ -740,8 +769,8 @@ const App = () => {
       }
       stopInternalPlayhead();
       setIsPlaying(false);
-    }
-  }, [stopInternalPlayhead]);
+    });
+  }, [showConfirm, stopInternalPlayhead]);
 
   const handleSaveProject = useCallback(async () => {
     setProjectModalMode('save');
@@ -868,16 +897,16 @@ const App = () => {
 
   const handleDeleteSavedProject = useCallback(async (projectId, e) => {
     e.stopPropagation();
-    if (!confirm('Delete this project? This cannot be undone.')) return;
-    
-    try {
-      await deleteProject(projectId);
-      setSavedProjects(prev => prev.filter(p => p.id !== projectId));
-    } catch (err) {
-      console.error('Delete failed:', err);
-      alert('Failed to delete project.');
-    }
-  }, []);
+    showConfirm('Sei sicuro di voler eliminare questo progetto? L\'operazione non può essere annullata.', async () => {
+      try {
+        await deleteProject(projectId);
+        setSavedProjects(prev => prev.filter(p => p.id !== projectId));
+      } catch (err) {
+        console.error('Delete failed:', err);
+        alert('Failed to delete project.');
+      }
+    });
+  }, [showConfirm]);
 
   // ── Password Change Handler ────────────────────────────────────────────────
   const handlePasswordChange = useCallback(() => {
@@ -898,10 +927,10 @@ const App = () => {
 
   // ── User Management Handlers ───────────────────────────────────────────────
   const handleDisconnectUser = useCallback((conn) => {
-    if (confirm('Disconnect this user?')) {
+    showConfirm('Sei sicuro di voler disconnettere questo utente?', () => {
       disconnectUser(conn);
-    }
-  }, [disconnectUser]);
+    });
+  }, [showConfirm, disconnectUser]);
 
   // ── Layout & Drag Listeners ────────────────────────────────────────────────
   useEffect(() => {
@@ -1490,6 +1519,13 @@ const App = () => {
             </div>
           </div>
         )}
+        {/* Confirm Dialog */}
+        <ConfirmModal
+          isOpen={confirmDialog.open}
+          message={confirmDialog.message}
+          onConfirm={handleConfirmOk}
+          onCancel={handleConfirmCancel}
+        />
       </div>
     </ErrorBoundary>
   );
