@@ -24,8 +24,13 @@ export async function renderMixdown(tracks, totalDuration, videoURL, settings = 
         
         const source = offlineCtx.createBufferSource();
         source.buffer = clipBuffer;
+        // Assicura upmix mono→stereo: se il buffer è mono (1 canale) e la destinazione
+        // è stereo (2 canali), 'speakers' duplica il canale su L+R automaticamente.
+        source.channelInterpretation = 'speakers';
+        source.channelCountMode = 'max';
         const gain = offlineCtx.createGain();
         gain.gain.value = Math.max(0, Math.min(1, track.volume * (clip.gain ?? 1)));
+        gain.channelInterpretation = 'speakers';
         source.connect(gain);
         gain.connect(offlineCtx.destination);
         
@@ -66,14 +71,23 @@ export async function renderSingleClip(clip, settings = { sampleRate: 48000, bit
   const endSample = Math.min(startSample + durationSamples, decoded.length);
 
   const numCh  = decoded.numberOfChannels;
+  // Se il buffer è mono (1 canale), upmix a stereo duplicando il canale su L+R
+  const outCh = numCh === 1 ? 2 : numCh;
   const sliced = new AudioBuffer({
-    numberOfChannels: numCh,
+    numberOfChannels: outCh,
     length:           Math.max(1, endSample - startSample),
     sampleRate,
   });
 
-  for (let c = 0; c < numCh; c++) {
-    sliced.copyToChannel(decoded.getChannelData(c).slice(startSample, endSample), c);
+  if (numCh === 1) {
+    // Upmix mono→stereo: copia canale 0 sia in L (0) che in R (1)
+    const monoData = decoded.getChannelData(0).slice(startSample, endSample);
+    sliced.copyToChannel(monoData, 0);
+    sliced.copyToChannel(monoData, 1);
+  } else {
+    for (let c = 0; c < numCh; c++) {
+      sliced.copyToChannel(decoded.getChannelData(c).slice(startSample, endSample), c);
+    }
   }
 
   return bufferToWav(sliced, settings.bitDepth);

@@ -147,6 +147,7 @@ const App = () => {
   const videoRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const monitorAudioRef = useRef(null); // Audio element per monitoraggio realtime microfono attore
+  const monitorAudioCtxRef = useRef(null); // AudioContext per upmix mono→stereo del monitoring
   const sendCommandRef = useRef(null);
   const startRecordingRef = useRef(null);
   const stopRecordingRef = useRef(null);
@@ -1092,24 +1093,64 @@ const App = () => {
     }
   };
 
-  // Effect per gestire il monitoraggio realtime del microfono dell'attore durante la registrazione
+  // Effect per gestire il monitoraggio realtime del microfono dell'attore durante la registrazione.
+  // Usa Web Audio API per garantire l'upmix mono→stereo: il segnale mono (solo L o solo R)
+  // viene duplicato su entrambi i canali prima di uscire dagli altoparlanti.
   useEffect(() => {
     // Solo il direttore (host) ha bisogno di monitorare l'attore durante la registrazione
     if (sessionRole !== 'host') return;
-    
-    if (isRecording && remoteStream && monitorAudioRef.current) {
-      // Attiva monitoraggio: riproduci lo stream remoto (microfono attore)
-      console.log('[App] Activating actor microphone monitoring during recording');
-      monitorAudioRef.current.srcObject = remoteStream;
-      monitorAudioRef.current.play().catch(err => {
-        console.warn('[App] Failed to start monitoring playback:', err);
-      });
-    } else if (!isRecording && monitorAudioRef.current) {
-      // Disattiva monitoraggio quando la registrazione finisce
+
+    const stopMonitoring = () => {
+      if (monitorAudioCtxRef.current) {
+        monitorAudioCtxRef.current.close().catch(() => {});
+        monitorAudioCtxRef.current = null;
+      }
+      if (monitorAudioRef.current) {
+        monitorAudioRef.current.pause();
+        monitorAudioRef.current.srcObject = null;
+      }
+    };
+
+    if (isRecording && remoteStream) {
+      console.log('[App] Activating actor microphone monitoring (mono→stereo upmix) during recording');
+      try {
+        // Crea AudioContext per il monitoring
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        monitorAudioCtxRef.current = ctx;
+
+        const source = ctx.createMediaStreamSource(remoteStream);
+
+        // ChannelMergerNode: prende 1 ingresso mono e lo duplica su L+R
+        const merger = ctx.createChannelMerger(2);
+        // channelInterpretation 'speakers' fa l'upmix automatico mono→stereo
+        source.channelInterpretation = 'speakers';
+        source.connect(merger, 0, 0); // canale 0 → L
+        source.connect(merger, 0, 1); // canale 0 → R
+        merger.connect(ctx.destination);
+
+        // Riprendi il context se sospeso (policy autoplay browser)
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[App] Web Audio monitoring failed, falling back to <audio> element:', err);
+        // Fallback: elemento <audio> con upmix automatico del browser
+        if (monitorAudioRef.current) {
+          monitorAudioRef.current.srcObject = remoteStream;
+          monitorAudioRef.current.play().catch(e => {
+            console.warn('[App] Failed to start monitoring playback:', e);
+          });
+        }
+      }
+    } else if (!isRecording) {
       console.log('[App] Deactivating actor microphone monitoring');
-      monitorAudioRef.current.pause();
-      monitorAudioRef.current.srcObject = null;
+      stopMonitoring();
     }
+
+    return () => {
+      // Cleanup solo se stava monitorando
+      if (!isRecording) stopMonitoring();
+    };
   }, [isRecording, remoteStream, sessionRole]);
 
   if (view === 'landing') return <LandingPage onLaunch={(role, pin) => { setInitialRole(role); if (pin) setRoomName(pin); setView('app'); }} />;
