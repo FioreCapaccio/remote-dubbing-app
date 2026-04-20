@@ -39,6 +39,15 @@ const DawTransport = ({
       <div className="transport-left">
         <div className="transport-main-controls">
           <button
+            onClick={handleStartProcess}
+            className={`btn-transport btn-rec${isRecording ? ' btn-rec--active' : ''}`}
+            title={isRecording ? 'Recording active — use STOP to stop' : 'Start Recording'}
+            disabled={isRecording}
+            style={isRecording ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : undefined}
+          >
+            <div className="rec-dot" />
+          </button>
+          <button
             onClick={handleStop}
             className="btn-transport btn-stop"
             title={isRecording ? 'Stop Recording' : 'Stop / Rewind (Esc)'}
@@ -51,15 +60,6 @@ const DawTransport = ({
             title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
           >
             {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-          </button>
-          <button
-            onClick={handleStartProcess}
-            className={`btn-transport btn-rec${isRecording ? ' btn-rec--active' : ''}`}
-            title={isRecording ? 'Recording active — use STOP to stop' : 'Start Recording'}
-            disabled={isRecording}
-            style={isRecording ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : undefined}
-          >
-            <div className="rec-dot" />
           </button>
         </div>
         
