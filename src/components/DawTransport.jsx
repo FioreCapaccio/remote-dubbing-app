@@ -41,7 +41,7 @@ const DawTransport = ({
           <button
             onClick={handleStop}
             className="btn-transport btn-stop"
-            title="Stop (Esc)"
+            title={isRecording ? 'Stop Recording' : 'Stop / Rewind (Esc)'}
           >
             <Square size={18} fill="currentColor" />
           </button>
@@ -55,7 +55,9 @@ const DawTransport = ({
           <button
             onClick={handleStartProcess}
             className={`btn-transport btn-rec${isRecording ? ' btn-rec--active' : ''}`}
-            title={isRecording ? 'Stop Recording' : 'Start Recording'}
+            title={isRecording ? 'Recording active — use STOP to stop' : 'Start Recording'}
+            disabled={isRecording}
+            style={isRecording ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : undefined}
           >
             <div className="rec-dot" />
           </button>

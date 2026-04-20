@@ -449,39 +449,55 @@ const App = () => {
 
   // ── Action Handlers ────────────────────────────────────────────────────────
   const handleStop = useCallback(() => {
-    // Se la registrazione è attiva, fermala prima
+    // Caso 1: registrazione attiva → fermala (senza rewind)
     if (isRecording) {
       if (sessionRole === 'host' && sendCommandRef.current) {
         sendCommandRef.current({ type: 'STOP_RECORDING' });
       }
       stopRecording();
       setRecordingStatus('idle');
+      // Annulla il countdown se ancora attivo
+      cancelCountdown();
+      // Ferma anche il playback ma NON fa rewind
+      if (videoRef.current) {
+        videoRef.current.pause();
+      } else {
+        stopInternalPlayhead();
+      }
+      setIsPlaying(false);
+      if (sendCommandRef.current) sendCommandRef.current({ type: 'PAUSE' });
+      return;
     }
 
-    // Annulla il countdown se attivo
-    cancelCountdown();
-
-    // Pause playback
-    if (videoRef.current) {
-      videoRef.current.pause();
-    } else {
-      stopInternalPlayhead();
+    // Caso 2: countdown attivo → cancella countdown
+    if (countdown !== null) {
+      cancelCountdown();
+      if (sendCommandRef.current) sendCommandRef.current({ type: 'COUNTDOWN_CANCEL' });
+      return;
     }
-    setIsPlaying(false);
-    
-    // Reset to beginning
+
+    // Caso 3: playback attivo → ferma (senza rewind)
+    if (isPlaying) {
+      if (videoRef.current) {
+        videoRef.current.pause();
+      } else {
+        stopInternalPlayhead();
+      }
+      setIsPlaying(false);
+      if (sendCommandRef.current) sendCommandRef.current({ type: 'PAUSE' });
+      return;
+    }
+
+    // Caso 4: già fermo → rewind a 0
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
     }
     internalTimeRef.current = 0;
     setCurrentTime(0);
-    
-    // Send STOP and SEEK commands to sync with actor (works with or without video)
     if (sendCommandRef.current) {
-      sendCommandRef.current({ type: 'PAUSE' });
       sendCommandRef.current({ type: 'SEEK', time: 0 });
     }
-  }, [isRecording, sessionRole, stopRecording, cancelCountdown, stopInternalPlayhead]);
+  }, [isRecording, isPlaying, countdown, sessionRole, stopRecording, cancelCountdown, stopInternalPlayhead]);
 
   // Debounce ref for REC button to prevent double-triggering
   const isProcessingRecRef = useRef(false);
@@ -506,6 +522,12 @@ const App = () => {
   }, [isPlaying, startInternalPlayhead, stopInternalPlayhead]);
 
   const handleStartProcess = useCallback(() => {
+    // Se la registrazione è già attiva, il tasto REC è inerte — usa STOP per fermare
+    if (isRecording) {
+      console.log('[App] REC button pressed while recording — ignoring (use STOP to stop)');
+      return;
+    }
+
     // Prevent double-triggering with debounce
     if (isProcessingRecRef.current) {
       console.log('[App] REC button debounced - ignoring duplicate call');
@@ -518,24 +540,7 @@ const App = () => {
     console.log('[App] isRecording:', isRecording, '| countdown:', countdown);
     console.log('[App] sessionRole:', sessionRole, '| isConnected:', isConnected);
     console.log('[App] selectedTrackId:', selectedTrackId);
-    
-    if (isRecording) {
-      console.log('[App] Stopping recording...');
-      
-      // Se siamo il direttore, invia comando STOP_RECORDING al guest
-      if (sessionRole === 'host' && sendCommandRef.current) {
-        console.log('[App] Host sending STOP_RECORDING to guest');
-        sendCommandRef.current({ type: 'STOP_RECORDING' });
-      }
-      
-      stopRecording();
-      setRecordingStatus('idle'); // Reset stato
-      if (videoRef.current) videoRef.current.pause();
-      else stopInternalPlayhead();
-      setIsPlaying(false);
-      if (sendCommandRef.current) sendCommandRef.current({ type: 'PAUSE' });
-      return;
-    }
+
     if (countdown !== null) {
       console.log('[App] Cancelling countdown...');
       cancelCountdown();
@@ -578,7 +583,7 @@ const App = () => {
         if (sendCommandRef.current) sendCommandRef.current({ type: 'REC_START' });
       }
     });
-  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, stopRecording, startRecording, startInternalPlayhead, stopInternalPlayhead, selectedTrackId, sessionRole]);
+  }, [isRecording, countdown, cancelCountdown, startCountdownDisplay, startRecording, startInternalPlayhead, selectedTrackId, sessionRole]);
 
   // Define handleRemoteCommand and sync to ref
   const handleRemoteCommand = useCallback((cmd) => {
