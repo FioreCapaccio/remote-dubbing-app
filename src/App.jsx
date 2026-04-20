@@ -16,7 +16,7 @@ import VideoPreview from './components/VideoPreview';
 import ConfirmModal from './components/ConfirmModal';
 
 // Utils
-import { renderMixdown } from './utils/audioExport';
+import { renderMixdown, monoToStereoBlob } from './utils/audioExport';
 import { saveProject, loadProject, listProjects, deleteProject, exportProjectToFile, importProjectFromFile, isFileSystemAccessSupported, pickDirectory } from './utils/projectStorage';
 
 // Styles
@@ -173,11 +173,14 @@ const App = () => {
     }
   }, []);
 
-  const handleAudioBlobFromGuest = useCallback((blob, metadata) => {
+  const handleAudioBlobFromGuest = useCallback(async (blob, metadata) => {
     console.log('[App] Received audio blob from guest:', blob.size, 'bytes');
     
+    // Converti mono→stereo prima di creare il blob URL, per garantire playback corretto su L+R
+    const stereoBlob = await monoToStereoBlob(blob, audioSettings.sampleRate || 48000);
+    
     // Crea URL per il blob
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(stereoBlob);
     
     // Calcola la durata (usa il tempo corrente come fine registrazione)
     const tDuration = internalTimeRef.current - recordStartTime.current;
@@ -201,33 +204,34 @@ const App = () => {
       id: Date.now(),
       trackId: targetTrackId,
       url,
-      blob,
+      blob: stereoBlob,
       timestamp: metadata.timestamp || new Date().toLocaleTimeString(),
       sourceType: metadata.sourceType || 'remote'
     };
     
     console.log('[App] Audio clip added to track:', targetTrackId);
-  }, [selectedTrackId]);
+  }, [selectedTrackId, audioSettings.sampleRate]);
 
   const { peerId, isConnected, connectionStatus, connectionError, sendCommand, sendAudioBlob, remoteStream, startTalkback, stopTalkback, connections, disconnectUser } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper, audioSettings);
 
   // Hook per la registrazione audio
   // - Host (direttore): riceve blob dal guest e li aggiunge alla timeline
   // - Guest (attore): registra localmente e invia il blob al host
-  const handleRecordingBlob = useCallback((blob, metadata) => {
+  const handleRecordingBlob = useCallback(async (blob, metadata) => {
     // Questo callback viene chiamato solo dal guest quando finisce la registrazione
     if (sessionRole === 'guest' && sendAudioBlob) {
       console.log('[App] Guest sending recorded blob to host and adding to own timeline');
       
-      // 1. Invia il blob al direttore
+      // 1. Invia il blob al direttore (originale, la conversione la fa il direttore)
       setRecordingStatus('sent'); // Mostra "File inviato" per l'attore
       sendAudioBlob(blob, {
         ...metadata,
         recordStartTime: recordStartTime.current
       });
       
-      // 2. Aggiungi il clip anche alla timeline dell'attore (per poter risentire la registrazione)
-      const url = URL.createObjectURL(blob);
+      // 2. Converti mono→stereo e aggiungi il clip alla timeline dell'attore
+      const stereoBlob = await monoToStereoBlob(blob, audioSettings.sampleRate || 48000);
+      const url = URL.createObjectURL(stereoBlob);
       const tDuration = internalTimeRef.current - recordStartTime.current;
       const targetTrackId = metadata.trackId || 'track-1';
       
@@ -246,7 +250,7 @@ const App = () => {
       if (recordingStatusTimerRef.current) clearTimeout(recordingStatusTimerRef.current);
       recordingStatusTimerRef.current = setTimeout(() => setRecordingStatus('idle'), 3000);
     }
-  }, [sessionRole, sendAudioBlob]);
+  }, [sessionRole, sendAudioBlob, audioSettings.sampleRate]);
 
   const { 
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
@@ -1038,7 +1042,7 @@ const App = () => {
   // ── Process Recorded Takes ─────────────────────────────────────────────────
   useEffect(() => {
     // Set persistente degli ID già processati — mai resettato, mai overwrite
-    takes.forEach(take => {
+    takes.forEach(async (take) => {
       if (lastProcessedTake.current.has(take.id)) return;
       
       lastProcessedTake.current.add(take.id);
@@ -1048,11 +1052,26 @@ const App = () => {
       
       // Determina su quale traccia aggiungere il clip
       const targetTrackId = take.trackId || selectedTrackId;
+
+      // Converti mono→stereo se necessario, poi crea il blob URL
+      let clipUrl = take.url;
+      if (take.blob) {
+        try {
+          const stereoBlob = await monoToStereoBlob(take.blob, audioSettings.sampleRate || 48000);
+          // Se la conversione ha prodotto un nuovo blob, revoca il vecchio URL e crea il nuovo
+          if (stereoBlob !== take.blob) {
+            URL.revokeObjectURL(take.url);
+            clipUrl = URL.createObjectURL(stereoBlob);
+          }
+        } catch (err) {
+          console.warn('[App] monoToStereoBlob failed for take', take.id, err);
+        }
+      }
       
       setTracks(prev => prev.map(t => t.id === targetTrackId ? {
         ...t, clips: [...t.clips, {
           id: `clip-${take.id}`,
-          url: take.url,
+          url: clipUrl,
           startTime: recordStartTime.current,
           duration: tDuration > 0 ? tDuration : 2,
           gain: 1,
@@ -1060,7 +1079,7 @@ const App = () => {
         }]
       } : t));
     });
-  }, [takes, selectedTrackId]);
+  }, [takes, selectedTrackId, audioSettings.sampleRate]);
 
   // ── Export Mixdown ─────────────────────────────────────────────────────────
   const handleExportMixdown = async () => {

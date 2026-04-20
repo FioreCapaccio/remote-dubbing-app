@@ -4,6 +4,46 @@
  * Supports Pro ADR Standards: 44.1/48kHz, 16/24-bit.
  */
 
+/**
+ * Converts a mono audio blob to a stereo WAV blob by duplicating channel 0 onto L+R.
+ * This ensures correct playback on all browsers and devices without relying on
+ * browser-side upmix (which is not always applied to <audio> elements).
+ *
+ * @param {Blob} blob - Input audio blob (mono or stereo)
+ * @param {number} [sampleRate=48000] - Target sample rate
+ * @returns {Promise<Blob>} - Stereo WAV blob (or original blob if already stereo / on error)
+ */
+export async function monoToStereoBlob(blob, sampleRate = 48000) {
+  try {
+    const arrayBuffer = await blob.arrayBuffer();
+    const tmpCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
+    let decoded;
+    try {
+      decoded = await tmpCtx.decodeAudioData(arrayBuffer);
+    } finally {
+      tmpCtx.close().catch(() => {});
+    }
+
+    // Already stereo (or multi-channel): return original blob unchanged
+    if (decoded.numberOfChannels >= 2) return blob;
+
+    // Mono: duplicate channel 0 → L and R
+    const stereo = new AudioBuffer({
+      numberOfChannels: 2,
+      length: decoded.length,
+      sampleRate: decoded.sampleRate,
+    });
+    const monoData = decoded.getChannelData(0);
+    stereo.copyToChannel(monoData, 0);
+    stereo.copyToChannel(monoData, 1);
+
+    return bufferToWav(stereo, 16);
+  } catch (err) {
+    console.warn('[monoToStereoBlob] Conversion failed, returning original blob:', err);
+    return blob;
+  }
+}
+
 export async function renderMixdown(tracks, totalDuration, videoURL, settings = { sampleRate: 48000, bitDepth: 24 }) {
   const sampleRate = settings.sampleRate;
   const offlineCtx = new OfflineAudioContext(2, Math.max(1, sampleRate * totalDuration), sampleRate);
