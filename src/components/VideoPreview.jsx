@@ -1,5 +1,5 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Video, RefreshCw } from 'lucide-react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { Video, RefreshCw, PinOff, Pin } from 'lucide-react';
 
 const VideoPreview = ({ 
   videoHeight, videoURL, videoRef, 
@@ -15,6 +15,15 @@ const VideoPreview = ({
   const fileInputRef = useRef(null);
   const [isDraggingVideo, setIsDraggingVideo] = useState(false);
   const [localActiveCue, setLocalActiveCue] = useState(null);
+
+  // Float/dock state
+  const [isFloating, setIsFloating] = useState(false);
+  const [floatPos, setFloatPos] = useState({ x: 80, y: 80 });
+  const [floatSize, setFloatSize] = useState({ w: 420, h: 260 });
+  const floatRef = useRef(null);
+
+  // Dragging state refs (avoid re-renders during drag)
+  const dragState = useRef(null);
 
   // Compute active cue locally using RAF for exact timing (fixes delay)
   useEffect(() => {
@@ -159,20 +168,40 @@ const VideoPreview = ({
     return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}:${f.toString().padStart(2,'0')}`;
   };
 
-  return (
-    <section 
-      className={`video-master ${isDraggingVideo ? 'drag-over-video' : ''}`}
-      style={{ height: `${videoHeight}px` }} 
-      onClick={() => !videoURL && fileInputRef.current?.click()}
-      onDragOver={(e) => { e.preventDefault(); setIsDraggingVideo(true); }}
-      onDragLeave={() => setIsDraggingVideo(false)}
-      onDrop={(e) => { 
-        e.preventDefault(); 
-        setIsDraggingVideo(false);
-        const f = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('video/'));
-        if (f) loadFile(f);
-      }}
-    >
+  // ── Drag logic for floating window header ──────────────────────────────────
+  const handleHeaderMouseDown = useCallback((e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: floatPos.x,
+      origY: floatPos.y,
+    };
+
+    const onMouseMove = (ev) => {
+      if (!dragState.current) return;
+      const dx = ev.clientX - dragState.current.startX;
+      const dy = ev.clientY - dragState.current.startY;
+      setFloatPos({
+        x: Math.max(0, dragState.current.origX + dx),
+        y: Math.max(0, dragState.current.origY + dy),
+      });
+    };
+
+    const onMouseUp = () => {
+      dragState.current = null;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [floatPos]);
+
+  // Inner video content (shared between docked and floating modes)
+  const videoContent = (
+    <>
       {videoURL ? (
         <div className="v-container">
           <video 
@@ -251,6 +280,92 @@ const VideoPreview = ({
           )}
         </div>
       )}
+    </>
+  );
+
+  // ── Float mode: render as fixed overlay ────────────────────────────────────
+  if (isFloating) {
+    return (
+      <>
+        {/* Placeholder in layout to keep space */}
+        <section
+          className="video-master video-master--docked-placeholder"
+          style={{ height: `${videoHeight}px` }}
+        />
+
+        {/* Floating window */}
+        <div
+          ref={floatRef}
+          className="video-float-window"
+          style={{
+            left: floatPos.x,
+            top: floatPos.y,
+            width: floatSize.w,
+            height: floatSize.h,
+          }}
+        >
+          {/* Title bar */}
+          <div
+            className="video-float-titlebar"
+            onMouseDown={handleHeaderMouseDown}
+          >
+            <span className="video-float-title">VIDEO PREVIEW</span>
+            <button
+              className="video-float-pin-btn"
+              onClick={() => setIsFloating(false)}
+              title="Aggancia al layout"
+            >
+              <Pin size={13} />
+              <span>AGGANCIA</span>
+            </button>
+          </div>
+
+          {/* Video area */}
+          <div
+            className={`video-float-body ${isDraggingVideo ? 'drag-over-video' : ''}`}
+            onClick={() => !videoURL && fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setIsDraggingVideo(true); }}
+            onDragLeave={() => setIsDraggingVideo(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDraggingVideo(false);
+              const f = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('video/'));
+              if (f) loadFile(f);
+            }}
+          >
+            {videoContent}
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ── Docked mode (default) ──────────────────────────────────────────────────
+  return (
+    <section 
+      className={`video-master ${isDraggingVideo ? 'drag-over-video' : ''}`}
+      style={{ height: `${videoHeight}px` }} 
+      onClick={() => !videoURL && fileInputRef.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setIsDraggingVideo(true); }}
+      onDragLeave={() => setIsDraggingVideo(false)}
+      onDrop={(e) => { 
+        e.preventDefault(); 
+        setIsDraggingVideo(false);
+        const f = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('video/'));
+        if (f) loadFile(f);
+      }}
+    >
+      {/* Float toggle button */}
+      <button
+        className="video-float-toggle-btn"
+        onClick={(e) => { e.stopPropagation(); setIsFloating(true); }}
+        title="Scollega finestra video"
+      >
+        <PinOff size={13} />
+        <span>FLOAT</span>
+      </button>
+
+      {videoContent}
     </section>
   );
 };
