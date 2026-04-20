@@ -142,7 +142,7 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
   useEffect(() => {
     // Per il guest: usa il mic locale per il peak meter durante la registrazione
     if (role === 'guest') {
-      if (!isRecording) {
+      if (!isRecording && !scriptProcessorRef.current) {
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
           audioContextRef.current.close().catch(() => {});
           audioContextRef.current = null;
@@ -152,13 +152,16 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       return;
     }
 
-    // Per l'host: usa lo stream remoto
+    // Per l'host: usa lo stream remoto per il peak meter
+    // NON chiudere il context se stiamo registrando localmente (scriptProcessorRef attivo)
     if (!isConnected || !remoteStream) {
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      if (!scriptProcessorRef.current && audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(() => {});
         audioContextRef.current = null;
       }
-      analyserRef.current = null;
+      if (!scriptProcessorRef.current) {
+        analyserRef.current = null;
+      }
       return;
     }
 
