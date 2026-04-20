@@ -16,7 +16,7 @@ import VideoPreview from './components/VideoPreview';
 import ConfirmModal from './components/ConfirmModal';
 
 // Utils
-import { renderMixdown, monoToStereoBlob } from './utils/audioExport';
+import { renderMixdown } from './utils/audioExport';
 import { saveProject, loadProject, listProjects, deleteProject, exportProjectToFile, importProjectFromFile, isFileSystemAccessSupported, pickDirectory } from './utils/projectStorage';
 
 // Styles
@@ -61,9 +61,8 @@ const App = () => {
   const isResizingHorizontal = useRef(false);
   const isScrubbingRef = useRef(false);
 
-  // Web Audio context for stereo upmix of mono clips during playback
-  const playbackCtxRef = useRef(null);
-  const connectedClipsRef = useRef(new Set()); // track which clip IDs are already routed through Web Audio
+  // Web Audio context for stereo upmix of mono clips during playback — REMOVED
+  // Clips are now recorded as stereo WAV directly, no post-processing needed.
 
   // DAW State
   const [roomName, setRoomName] = useState('');
@@ -177,21 +176,18 @@ const App = () => {
     }
   }, []);
 
-  const handleAudioBlobFromGuest = useCallback(async (blob, metadata) => {
+  const handleAudioBlobFromGuest = useCallback((blob, metadata) => {
     console.log('[App] Received audio blob from guest:', blob.size, 'bytes');
-    
-    // Converti mono→stereo prima di creare il blob URL, per garantire playback corretto su L+R
-    const stereoBlob = await monoToStereoBlob(blob, audioSettings.sampleRate || 48000);
-    
-    // Crea URL per il blob
-    const url = URL.createObjectURL(stereoBlob);
-    
+
+    // Il blob è già WAV stereo (prodotto da ScriptProcessorNode nel guest)
+    const url = URL.createObjectURL(blob);
+
     // Calcola la durata (usa il tempo corrente come fine registrazione)
     const tDuration = internalTimeRef.current - recordStartTime.current;
-    
+
     // Aggiungi il clip alla timeline
     const targetTrackId = metadata.trackId || selectedTrackId;
-    
+
     setTracks(prev => prev.map(t => t.id === targetTrackId ? {
       ...t, clips: [...t.clips, {
         id: `clip-${Date.now()}`,
@@ -202,43 +198,32 @@ const App = () => {
         sourceType: metadata.sourceType || 'remote'
       }]
     } : t));
-    
-    // Aggiungi anche ai takes per coerenza
-    const newTake = {
-      id: Date.now(),
-      trackId: targetTrackId,
-      url,
-      blob: stereoBlob,
-      timestamp: metadata.timestamp || new Date().toLocaleTimeString(),
-      sourceType: metadata.sourceType || 'remote'
-    };
-    
+
     console.log('[App] Audio clip added to track:', targetTrackId);
-  }, [selectedTrackId, audioSettings.sampleRate]);
+  }, [selectedTrackId]);
 
   const { peerId, isConnected, connectionStatus, connectionError, sendCommand, sendAudioBlob, remoteStream, startTalkback, stopTalkback, connections, disconnectUser } = usePeerSession(roomName, sessionRole, handleRemoteCommandWrapper, audioSettings);
 
   // Hook per la registrazione audio
   // - Host (direttore): riceve blob dal guest e li aggiunge alla timeline
   // - Guest (attore): registra localmente e invia il blob al host
-  const handleRecordingBlob = useCallback(async (blob, metadata) => {
+  const handleRecordingBlob = useCallback((blob, metadata) => {
     // Questo callback viene chiamato solo dal guest quando finisce la registrazione
     if (sessionRole === 'guest' && sendAudioBlob) {
-      console.log('[App] Guest sending recorded blob to host and adding to own timeline');
-      
-      // 1. Invia il blob al direttore (originale, la conversione la fa il direttore)
+      console.log('[App] Guest sending WAV stereo blob to host and adding to own timeline');
+
+      // 1. Invia il blob al direttore (già WAV stereo)
       setRecordingStatus('sent'); // Mostra "File inviato" per l'attore
       sendAudioBlob(blob, {
         ...metadata,
         recordStartTime: recordStartTime.current
       });
-      
-      // 2. Converti mono→stereo e aggiungi il clip alla timeline dell'attore
-      const stereoBlob = await monoToStereoBlob(blob, audioSettings.sampleRate || 48000);
-      const url = URL.createObjectURL(stereoBlob);
+
+      // 2. Aggiungi il clip alla timeline dell'attore (già stereo WAV, nessuna conversione)
+      const url = URL.createObjectURL(blob);
       const tDuration = internalTimeRef.current - recordStartTime.current;
       const targetTrackId = metadata.trackId || 'track-1';
-      
+
       setTracks(prev => prev.map(t => t.id === targetTrackId ? {
         ...t, clips: [...t.clips, {
           id: `clip-${Date.now()}`,
@@ -249,12 +234,12 @@ const App = () => {
           sourceType: 'local'
         }]
       } : t));
-      
+
       // Reset dopo 3 secondi
       if (recordingStatusTimerRef.current) clearTimeout(recordingStatusTimerRef.current);
       recordingStatusTimerRef.current = setTimeout(() => setRecordingStatus('idle'), 3000);
     }
-  }, [sessionRole, sendAudioBlob, audioSettings.sampleRate]);
+  }, [sessionRole, sendAudioBlob]);
 
   const { 
     isRecording, takes, devices, outputDevices, selectedDevice, setSelectedDevice, 
@@ -693,33 +678,7 @@ const App = () => {
 
   // ── Sync Engine ────────────────────────────────────────────────────────────
   // Runs on every animation frame during playback to sync all audio clips.
-  // Uses internalTimeRef so it doesn't restart when currentTime state changes.
-  //
-  // Stereo upmix: mono clips are routed through Web Audio API with
-  // channelInterpretation='speakers' so they play on both L+R channels.
-  const ensureStereoRouting = useCallback((audioEl, clipId) => {
-    if (connectedClipsRef.current.has(clipId)) return;
-    try {
-      if (!playbackCtxRef.current) {
-        playbackCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      const ctx = playbackCtxRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
-      const source = ctx.createMediaElementSource(audioEl);
-      const gain = ctx.createGain();
-      gain.channelCount = 2;
-      gain.channelCountMode = 'explicit';
-      gain.channelInterpretation = 'speakers';
-      source.connect(gain);
-      gain.connect(ctx.destination);
-      connectedClipsRef.current.add(clipId);
-    } catch (err) {
-      // If it fails (e.g. already connected), just skip — audio will still play via default path
-      console.warn('[SyncEngine] stereo routing failed for', clipId, err);
-      connectedClipsRef.current.add(clipId); // don't retry
-    }
-  }, []);
-
+  // Clips are recorded as stereo WAV directly — no Web Audio upmix needed.
   useEffect(() => {
     let animationId;
     // Include ALL track types in hasSolo so soloing an audio track mutes the video too
@@ -729,7 +688,6 @@ const App = () => {
       tracks.forEach(track => {
         const effectiveMuted = track.muted || (hasSolo && !track.solo);
         if (track.type === 'video') {
-          // Apply mute/volume/solo to the video element directly
           if (videoRef.current) {
             videoRef.current.volume = effectiveMuted ? 0 : Math.max(0, Math.min(1, track.volume));
           }
@@ -738,8 +696,6 @@ const App = () => {
         track.clips.forEach(clip => {
           const audioEl = document.getElementById(clip.id);
           if (!audioEl) return;
-          // Route through Web Audio for stereo upmix (mono→L+R)
-          ensureStereoRouting(audioEl, clip.id);
           audioEl.volume = effectiveMuted ? 0 : Math.max(0, Math.min(1, track.volume * (clip.gain ?? 1)));
           const clipEnd = clip.startTime + clip.duration;
           if (isPlaying && exactTime >= clip.startTime && exactTime <= clipEnd) {
@@ -764,7 +720,7 @@ const App = () => {
       }));
     }
     return () => cancelAnimationFrame(animationId);
-  }, [isPlaying, tracks, ensureStereoRouting]);
+  }, [isPlaying, tracks]);
 
   // Apply volume / mute / solo / gain immediately on track state changes (works even when paused)
   useEffect(() => {
@@ -1074,36 +1030,22 @@ const App = () => {
   // ── Process Recorded Takes ─────────────────────────────────────────────────
   useEffect(() => {
     // Set persistente degli ID già processati — mai resettato, mai overwrite
-    takes.forEach(async (take) => {
+    takes.forEach((take) => {
       if (lastProcessedTake.current.has(take.id)) return;
-      
+
       lastProcessedTake.current.add(take.id);
-      
+
       // Use internalTimeRef for accurate duration even without video
       const tDuration = internalTimeRef.current - recordStartTime.current;
-      
+
       // Determina su quale traccia aggiungere il clip
       const targetTrackId = take.trackId || selectedTrackId;
 
-      // Converti mono→stereo se necessario, poi crea il blob URL
-      let clipUrl = take.url;
-      if (take.blob) {
-        try {
-          const stereoBlob = await monoToStereoBlob(take.blob, audioSettings.sampleRate || 48000);
-          // Se la conversione ha prodotto un nuovo blob, revoca il vecchio URL e crea il nuovo
-          if (stereoBlob !== take.blob) {
-            URL.revokeObjectURL(take.url);
-            clipUrl = URL.createObjectURL(stereoBlob);
-          }
-        } catch (err) {
-          console.warn('[App] monoToStereoBlob failed for take', take.id, err);
-        }
-      }
-      
+      // Il blob è già WAV stereo prodotto da ScriptProcessorNode — nessuna conversione necessaria
       setTracks(prev => prev.map(t => t.id === targetTrackId ? {
         ...t, clips: [...t.clips, {
           id: `clip-${take.id}`,
-          url: clipUrl,
+          url: take.url,
           startTime: recordStartTime.current,
           duration: tDuration > 0 ? tDuration : 2,
           gain: 1,
@@ -1111,7 +1053,7 @@ const App = () => {
         }]
       } : t));
     });
-  }, [takes, selectedTrackId, audioSettings.sampleRate]);
+  }, [takes, selectedTrackId]);
 
   // ── Export Mixdown ─────────────────────────────────────────────────────────
   const handleExportMixdown = async () => {
