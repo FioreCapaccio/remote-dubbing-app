@@ -230,7 +230,14 @@ const DawTimeline = ({
         if (t.id !== trackId) return t;
         return {
           ...t,
-          clips: t.clips.filter(c => c.id !== clipId)
+          clips: t.clips.filter(c => {
+            if (c.id !== clipId) return true;
+            // Revoca blob URL per liberare memoria
+            if (c.url && c.url.startsWith('blob:')) {
+              try { URL.revokeObjectURL(c.url); } catch {}
+            }
+            return false;
+          })
         };
       }));
       if (selectedClipId === clipId) {

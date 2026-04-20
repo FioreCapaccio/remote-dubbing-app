@@ -303,7 +303,7 @@ const App = () => {
 
   // Sync Logic
   const recordStartTime = useRef(0);
-  const lastProcessedTake = useRef(null);
+  const lastProcessedTake = useRef(new Set()); // Set persistente degli ID take già processati
 
   // Keep internalTimeRef in sync with currentTime state (for when the timer is not running)
   useEffect(() => {
@@ -985,8 +985,20 @@ const App = () => {
         if (sendCommandRef.current) sendCommandRef.current({ type: 'SEEK', time: newTime });
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipId) {
-        setTracks(prev => prev.map(t => ({ ...t, clips: t.clips.filter(c => c.id !== selectedClipId) })));
-        setSelectedClipId(null);
+        showConfirm('Sei sicuro di voler eliminare questa registrazione?', () => {
+          setTracks(prev => prev.map(t => ({
+            ...t,
+            clips: t.clips.filter(c => {
+              if (c.id !== selectedClipId) return true;
+              // Revoca blob URL per liberare memoria
+              if (c.url && c.url.startsWith('blob:')) {
+                try { URL.revokeObjectURL(c.url); } catch {}
+              }
+              return false;
+            })
+          })));
+          setSelectedClipId(null);
+        });
       }
       // Split clip at playhead (S or Ctrl+K)
       if ((e.key === 's' || (e.ctrlKey && e.key === 'k')) && selectedClipId) {
@@ -1015,40 +1027,33 @@ const App = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleTogglePlay, selectedClipId, countdown, cancelCountdown, currentTime]);
+  }, [handleTogglePlay, selectedClipId, countdown, cancelCountdown, currentTime, showConfirm]);
 
   // ── Process Recorded Takes ─────────────────────────────────────────────────
   useEffect(() => {
-    // Processa tutti i takes non ancora processati
-    const processedIds = new Set();
+    // Set persistente degli ID già processati — mai resettato, mai overwrite
     takes.forEach(take => {
-      if (!lastProcessedTake.current || !lastProcessedTake.current.includes(take.id)) {
-        processedIds.add(take.id);
-        
-        // Use internalTimeRef for accurate duration even without video
-        const tDuration = internalTimeRef.current - recordStartTime.current;
-        
-        // Determina su quale traccia aggiungere il clip
-        // Se il take ha un trackId, usa quella traccia, altrimenti usa la traccia selezionata
-        const targetTrackId = take.trackId || selectedTrackId;
-        
-        setTracks(prev => prev.map(t => t.id === targetTrackId ? {
-          ...t, clips: [...t.clips, {
-            id: `clip-${take.id}`,
-            url: take.url,
-            startTime: recordStartTime.current,
-            duration: tDuration > 0 ? tDuration : 2,
-            gain: 1,
-            sourceType: take.sourceType || 'local'
-          }]
-        } : t));
-      }
+      if (lastProcessedTake.current.has(take.id)) return;
+      
+      lastProcessedTake.current.add(take.id);
+      
+      // Use internalTimeRef for accurate duration even without video
+      const tDuration = internalTimeRef.current - recordStartTime.current;
+      
+      // Determina su quale traccia aggiungere il clip
+      const targetTrackId = take.trackId || selectedTrackId;
+      
+      setTracks(prev => prev.map(t => t.id === targetTrackId ? {
+        ...t, clips: [...t.clips, {
+          id: `clip-${take.id}`,
+          url: take.url,
+          startTime: recordStartTime.current,
+          duration: tDuration > 0 ? tDuration : 2,
+          gain: 1,
+          sourceType: take.sourceType || 'local'
+        }]
+      } : t));
     });
-    
-    // Aggiorna l'ultimo take processato
-    if (processedIds.size > 0) {
-      lastProcessedTake.current = Array.from(processedIds);
-    }
   }, [takes, selectedTrackId]);
 
   // ── Export Mixdown ─────────────────────────────────────────────────────────
