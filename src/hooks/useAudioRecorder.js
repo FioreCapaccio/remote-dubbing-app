@@ -260,7 +260,11 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
         const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
         // Copia il Float32Array (il buffer originale viene riutilizzato dal browser)
-        pcmChunksRef.current.push(new Float32Array(inputData));
+        const copy = new Float32Array(inputData);
+        pcmChunksRef.current.push(copy);
+        if (pcmChunksRef.current.length % 50 === 1) {
+          console.log('[AudioRecorder] PCM chunks collected:', pcmChunksRef.current.length, '| last chunk max:', Math.max(...copy.slice(0, 100).map(Math.abs)).toFixed(4));
+        }
       };
 
       // source → analyser → scriptProcessor → ctx.destination (muted via gain 0)
@@ -376,13 +380,12 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
 
   const stopRecording = useCallback(() => {
     // Se stiamo registrando localmente (guest o host senza connessione)
+    // PRIMA ferma e processa il recording, POI aggiorna lo stato
     if (scriptProcessorRef.current) {
       stopLocalRecording();
     }
 
-    setIsRecording(false);
-
-    // Sicurezza: ferma il mic stream se ancora attivo
+    // Sicurezza: ferma il mic stream se ancora attivo (non fermato da stopLocalRecording)
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach(t => t.stop());
       micStreamRef.current = null;
@@ -400,6 +403,9 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       audioContextRef.current = null;
     }
     analyserRef.current = null;
+
+    // Aggiorna stato DOPO aver processato tutto
+    setIsRecording(false);
   }, [stopLocalRecording]);
 
   return {
