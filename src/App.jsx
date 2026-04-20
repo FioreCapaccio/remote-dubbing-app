@@ -61,6 +61,10 @@ const App = () => {
   const isResizingHorizontal = useRef(false);
   const isScrubbingRef = useRef(false);
 
+  // Web Audio context for stereo upmix of mono clips during playback
+  const playbackCtxRef = useRef(null);
+  const connectedClipsRef = useRef(new Set()); // track which clip IDs are already routed through Web Audio
+
   // DAW State
   const [roomName, setRoomName] = useState('');
   const [sessionRole, setSessionRole] = useState(initialRole);
@@ -690,6 +694,32 @@ const App = () => {
   // ── Sync Engine ────────────────────────────────────────────────────────────
   // Runs on every animation frame during playback to sync all audio clips.
   // Uses internalTimeRef so it doesn't restart when currentTime state changes.
+  //
+  // Stereo upmix: mono clips are routed through Web Audio API with
+  // channelInterpretation='speakers' so they play on both L+R channels.
+  const ensureStereoRouting = useCallback((audioEl, clipId) => {
+    if (connectedClipsRef.current.has(clipId)) return;
+    try {
+      if (!playbackCtxRef.current) {
+        playbackCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = playbackCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+      const source = ctx.createMediaElementSource(audioEl);
+      const gain = ctx.createGain();
+      gain.channelCount = 2;
+      gain.channelCountMode = 'explicit';
+      gain.channelInterpretation = 'speakers';
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      connectedClipsRef.current.add(clipId);
+    } catch (err) {
+      // If it fails (e.g. already connected), just skip — audio will still play via default path
+      console.warn('[SyncEngine] stereo routing failed for', clipId, err);
+      connectedClipsRef.current.add(clipId); // don't retry
+    }
+  }, []);
+
   useEffect(() => {
     let animationId;
     // Include ALL track types in hasSolo so soloing an audio track mutes the video too
@@ -708,6 +738,8 @@ const App = () => {
         track.clips.forEach(clip => {
           const audioEl = document.getElementById(clip.id);
           if (!audioEl) return;
+          // Route through Web Audio for stereo upmix (mono→L+R)
+          ensureStereoRouting(audioEl, clip.id);
           audioEl.volume = effectiveMuted ? 0 : Math.max(0, Math.min(1, track.volume * (clip.gain ?? 1)));
           const clipEnd = clip.startTime + clip.duration;
           if (isPlaying && exactTime >= clip.startTime && exactTime <= clipEnd) {
@@ -732,7 +764,7 @@ const App = () => {
       }));
     }
     return () => cancelAnimationFrame(animationId);
-  }, [isPlaying, tracks]);
+  }, [isPlaying, tracks, ensureStereoRouting]);
 
   // Apply volume / mute / solo / gain immediately on track state changes (works even when paused)
   useEffect(() => {

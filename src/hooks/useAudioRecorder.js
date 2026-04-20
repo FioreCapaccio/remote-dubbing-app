@@ -142,7 +142,7 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       console.log('[AudioRecorder] Guest starting LOCAL recording');
       setRecordingSource('local');
       
-      // Ottieni il microfono locale in mono
+      // Ottieni il microfono locale in mono — registra direttamente dallo stream del mic
       const audioConstraints = {
         audio: {
           channelCount: 1,
@@ -158,43 +158,27 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         audioConstraints.audio.deviceId = { exact: selectedDevice };
       }
       
-      const monoStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
-      micStreamRef.current = monoStream;
+      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+      micStreamRef.current = stream;
       
-      // Upmix mono→stereo: usa GainNode con channelInterpretation='speakers'
-      // per duplicare automaticamente il canale mono su L+R
-      let recordingStream = monoStream;
+      // Setup analizzatore per il peak meter
       try {
-        const ctxOpts = settings.sampleRate ? { sampleRate: settings.sampleRate } : {};
-        const ctx = new (window.AudioContext || window.webkitAudioContext)(ctxOpts);
-        if (ctx.state === 'suspended') await ctx.resume();
-        audioContextRef.current = ctx;
-        
-        const src = ctx.createMediaStreamSource(monoStream);
-        
-        // Peak meter
-        analyserRef.current = ctx.createAnalyser();
+        const contextOptions = {};
+        if (settings && settings.sampleRate) {
+          contextOptions.sampleRate = settings.sampleRate;
+        }
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+        const source = audioContextRef.current.createMediaStreamSource(stream);
+        analyserRef.current = audioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 1024;
-        src.connect(analyserRef.current);
+        source.connect(analyserRef.current);
         updatePeakMeter();
-        
-        // Upmix: GainNode forzato a 2 canali con 'speakers' duplica mono su L+R
-        const upmix = ctx.createGain();
-        upmix.channelCount = 2;
-        upmix.channelCountMode = 'explicit';
-        upmix.channelInterpretation = 'speakers';
-        
-        const dest = ctx.createMediaStreamDestination();
-        dest.channelCount = 2;
-        dest.channelCountMode = 'explicit';
-        
-        src.connect(upmix);
-        upmix.connect(dest);
-        recordingStream = dest.stream;
-        console.log('[AudioRecorder] Stereo upmix via GainNode – ctx:', ctx.state, 'tracks:', dest.stream.getAudioTracks().length);
       } catch (err) {
-        console.error('[AudioRecorder] Stereo upmix failed, using mono:', err);
+        console.error('[AudioRecorder] Error setting up analyzer:', err);
       }
+
+      // Registra direttamente dallo stream mono del mic (MediaStreamDestination non funziona)
+      const recordingStream = stream;
 
       // Rileva il codec supportato
       const supportedMimeTypes = [
