@@ -158,25 +158,39 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         audioConstraints.audio.deviceId = { exact: selectedDevice };
       }
       
-      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
-      micStreamRef.current = stream;
-      
-      // Setup analizzatore per il peak meter
+      const monoStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+      micStreamRef.current = monoStream;
+
+      // Upmix mono→stereo via Web Audio API so the recorded blob has 2 channels.
+      // This prevents headphones from hearing audio only on one side.
+      let recordingStream = monoStream; // fallback: use mono if AudioContext fails
       try {
         const contextOptions = {};
         if (settings && settings.sampleRate) {
           contextOptions.sampleRate = settings.sampleRate;
         }
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
-        const source = audioContextRef.current.createMediaStreamSource(stream);
+        const monoSource = audioContextRef.current.createMediaStreamSource(monoStream);
+
+        // Peak meter – connect mono source directly
         analyserRef.current = audioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 1024;
-        source.connect(analyserRef.current);
+        monoSource.connect(analyserRef.current);
         updatePeakMeter();
+
+        // Stereo upmix: duplicate mono channel into L and R
+        const merger = audioContextRef.current.createChannelMerger(2);
+        monoSource.connect(merger, 0, 0); // mono → L
+        monoSource.connect(merger, 0, 1); // mono → R
+
+        const stereoDestination = audioContextRef.current.createMediaStreamDestination();
+        merger.connect(stereoDestination);
+        recordingStream = stereoDestination.stream;
+        console.log('[AudioRecorder] Stereo upmix active – recording stream channels:', stereoDestination.stream.getAudioTracks().length);
       } catch (err) {
-        console.error('[AudioRecorder] Error setting up local analyzer:', err);
+        console.error('[AudioRecorder] Error setting up stereo upmix, falling back to mono:', err);
       }
-      
+
       // Rileva il codec supportato
       const supportedMimeTypes = [
         'audio/webm;codecs=opus',
@@ -215,7 +229,7 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         audioBitsPerSecond: targetBitrate
       };
 
-      const mediaRecorder = new MediaRecorder(stream, recorderOptions);
+      const mediaRecorder = new MediaRecorder(recordingStream, recorderOptions);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
