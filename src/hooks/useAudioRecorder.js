@@ -32,7 +32,7 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: { 
-          channelCount: 1, // Force mono
+          channelCount: 2,
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false
@@ -142,10 +142,11 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
       console.log('[AudioRecorder] Guest starting LOCAL recording');
       setRecordingSource('local');
       
-      // Ottieni il microfono locale con alta qualità - usa le impostazioni dal direttore
+      // Ottieni il microfono locale — richiedi stereo (2 canali) per avere L+R in cuffia.
+      // Se il mic è mono, il browser duplica automaticamente su entrambi i canali.
       const audioConstraints = {
         audio: {
-          channelCount: 1, // Force mono
+          channelCount: 2,
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
@@ -158,46 +159,24 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         audioConstraints.audio.deviceId = { exact: selectedDevice };
       }
       
-      const monoStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
-      micStreamRef.current = monoStream;
-
-      // Upmix mono→stereo via Web Audio API so the recorded blob has 2 channels.
-      // This prevents headphones from hearing audio only on one side.
-      let recordingStream = monoStream; // fallback: use mono if AudioContext fails
+      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+      micStreamRef.current = stream;
+      const recordingStream = stream;
+      
+      // Setup analizzatore per il peak meter
       try {
         const contextOptions = {};
         if (settings && settings.sampleRate) {
           contextOptions.sampleRate = settings.sampleRate;
         }
-        const recCtx = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
-        // Resume context (browser autoplay policy may suspend it)
-        if (recCtx.state === 'suspended') await recCtx.resume();
-        audioContextRef.current = recCtx;
-
-        const monoSource = recCtx.createMediaStreamSource(monoStream);
-
-        // Peak meter – connect mono source directly
-        analyserRef.current = recCtx.createAnalyser();
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+        const source = audioContextRef.current.createMediaStreamSource(stream);
+        analyserRef.current = audioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 1024;
-        monoSource.connect(analyserRef.current);
+        source.connect(analyserRef.current);
         updatePeakMeter();
-
-        // Stereo upmix: duplicate mono channel into L and R
-        const splitter = recCtx.createChannelSplitter(1);
-        const merger = recCtx.createChannelMerger(2);
-        monoSource.connect(splitter);
-        splitter.connect(merger, 0, 0); // mono → L
-        splitter.connect(merger, 0, 1); // mono → R
-
-        const stereoDestination = recCtx.createMediaStreamDestination();
-        // Force stereo output channel count
-        stereoDestination.channelCount = 2;
-        stereoDestination.channelCountMode = 'explicit';
-        merger.connect(stereoDestination);
-        recordingStream = stereoDestination.stream;
-        console.log('[AudioRecorder] Stereo upmix active – tracks:', stereoDestination.stream.getAudioTracks().length, 'ctx state:', recCtx.state);
       } catch (err) {
-        console.error('[AudioRecorder] Error setting up stereo upmix, falling back to mono:', err);
+        console.error('[AudioRecorder] Error setting up analyzer:', err);
       }
 
       // Rileva il codec supportato
