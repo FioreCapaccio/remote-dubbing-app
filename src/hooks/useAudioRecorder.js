@@ -169,24 +169,33 @@ export const useAudioRecorder = (settings = { sampleRate: 48000 }, isConnected =
         if (settings && settings.sampleRate) {
           contextOptions.sampleRate = settings.sampleRate;
         }
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
-        const monoSource = audioContextRef.current.createMediaStreamSource(monoStream);
+        const recCtx = new (window.AudioContext || window.webkitAudioContext)(contextOptions);
+        // Resume context (browser autoplay policy may suspend it)
+        if (recCtx.state === 'suspended') await recCtx.resume();
+        audioContextRef.current = recCtx;
+
+        const monoSource = recCtx.createMediaStreamSource(monoStream);
 
         // Peak meter – connect mono source directly
-        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current = recCtx.createAnalyser();
         analyserRef.current.fftSize = 1024;
         monoSource.connect(analyserRef.current);
         updatePeakMeter();
 
         // Stereo upmix: duplicate mono channel into L and R
-        const merger = audioContextRef.current.createChannelMerger(2);
-        monoSource.connect(merger, 0, 0); // mono → L
-        monoSource.connect(merger, 0, 1); // mono → R
+        const splitter = recCtx.createChannelSplitter(1);
+        const merger = recCtx.createChannelMerger(2);
+        monoSource.connect(splitter);
+        splitter.connect(merger, 0, 0); // mono → L
+        splitter.connect(merger, 0, 1); // mono → R
 
-        const stereoDestination = audioContextRef.current.createMediaStreamDestination();
+        const stereoDestination = recCtx.createMediaStreamDestination();
+        // Force stereo output channel count
+        stereoDestination.channelCount = 2;
+        stereoDestination.channelCountMode = 'explicit';
         merger.connect(stereoDestination);
         recordingStream = stereoDestination.stream;
-        console.log('[AudioRecorder] Stereo upmix active – recording stream channels:', stereoDestination.stream.getAudioTracks().length);
+        console.log('[AudioRecorder] Stereo upmix active – tracks:', stereoDestination.stream.getAudioTracks().length, 'ctx state:', recCtx.state);
       } catch (err) {
         console.error('[AudioRecorder] Error setting up stereo upmix, falling back to mono:', err);
       }
